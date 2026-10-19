@@ -1,0 +1,2698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>双人画图 · 快乐比一比</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; touch-action: none !important; }
+        html, body {
+            margin: 0; padding: 0; height: 100%; overflow: hidden;
+            background: #1a1a2e;
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+            touch-action: none;
+            -webkit-user-select: none; -webkit-touch-callout: none;
+        }
+        .app-container {
+            display: flex; flex-direction: column;
+            height: 100vh; width: 100vw;
+            padding: 6px 8px 8px 8px; gap: 6px;
+        }
+        .top-bar {
+            display: flex; align-items: center; justify-content: space-between;
+            height: 48px; flex-shrink: 0; padding: 0 8px;
+            background: #23233a; border-radius: 60px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+        .title-area { display: flex; align-items: center; gap: 12px; padding-left: 16px; }
+        .title-area h1 {
+            color: #eef2fa; font-weight: 400; font-size: 1.1rem;
+            margin: 0; letter-spacing: 0.5px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .title-area h1 span {
+            background: #2f2f4a; padding: 2px 12px; border-radius: 40px;
+            font-size: 0.7rem; font-weight: 300; color: #b9c6e0;
+        }
+        .compare-area { display: flex; align-items: center; gap: 8px; padding-right: 16px; }
+        .compare-label { color: #9aa9c4; font-size: 0.85rem; }
+        .match-timer-area { display: flex; align-items: center; gap: 8px; }
+        .match-clock {
+            font-size: 1.2rem; font-weight: 700; color: #ffe08a;
+            background: #2f2f4a; padding: 4px 14px; border-radius: 30px;
+            letter-spacing: 1px; min-width: 118px; text-align: center;
+        }
+        .match-clock.warning { color: #ff5d5d; animation: pulseReady 1s infinite; }
+        .match-set { display: flex; align-items: center; gap: 5px; }
+        .match-set input {
+            width: 58px; height: 30px; border-radius: 20px; border: none;
+            text-align: center; font-size: 1rem; background: #2f2f4a;
+            color: #eef2fa; outline: none; touch-action: manipulation;
+        }
+        .match-set .match-min { color: #9aa9c4; font-size: 0.8rem; }
+        .match-apply {
+            background: #4d7a9b; color: white; border: none; border-radius: 20px;
+            padding: 6px 14px; font-size: 0.85rem; cursor: pointer;
+            font-weight: 600; touch-action: manipulation;
+        }
+        .match-apply:active { transform: scale(0.94); }
+        .match-timer-area.disabled .match-set { opacity: 0.4; pointer-events: none; }
+        .match-apply:disabled { opacity: 0.4; cursor: not-allowed; }
+        .match-set input:disabled { opacity: 0.4; }
+
+        .main-panels { display: flex; flex: 1; gap: 6px; min-height: 0; align-items: stretch; }
+
+        .side-toolbar {
+            flex: 0 0 104px;
+            background: #242433; border-radius: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.05);
+            display: flex; flex-direction: column;
+            padding: 10px 8px; gap: 8px;
+            overflow-y: auto; overflow-x: hidden;
+            justify-content: flex-end;
+        }
+        .side-toolbar.left-toolbar { border: 2px solid #2c4a5e; }
+        .side-toolbar.right-toolbar { border: 2px solid #5e3c4a; }
+        .side-toolbar::-webkit-scrollbar { width: 4px; }
+        .side-toolbar::-webkit-scrollbar-thumb { background: #4a4a66; border-radius: 4px; }
+
+        .toolbar-section { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
+        .toolbar-section-title {
+            font-size: 0.62rem; color: #8e9db5; text-transform: uppercase;
+            letter-spacing: 0.8px; padding-left: 2px; margin-bottom: 1px; font-weight: 600;
+        }
+        .tool-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+        .side-toolbar .tool-btn {
+            background: #3a3a55; border: none; color: #f0f4ff;
+            height: 42px; border-radius: 9px; font-size: 1.05rem;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 3px 5px rgba(0,0,0,0.3), inset 0 1px 2px rgba(255,255,255,0.1);
+            transition: all 0.1s ease; touch-action: manipulation;
+            position: relative; padding: 2px;
+        }
+        .side-toolbar .tool-btn:active { transform: scale(0.94); background: #4d4d6e; }
+        .side-toolbar .tool-btn.active-tool {
+            background: #4d7a9b;
+            box-shadow: 0 0 0 2px #aad0ff, 0 3px 6px black;
+            color: white;
+        }
+        .side-toolbar .tool-btn .btn-label {
+            font-size: 0.52rem; color: #b9c6e0; margin-top: 1px; letter-spacing: 0.3px;
+        }
+        .side-toolbar .tool-btn.active-tool .btn-label { color: #e8f4ff; }
+
+        .undo-redo-row { display: flex; gap: 4px; }
+        .undo-redo-row .tool-btn { flex: 1; height: 38px; }
+
+        .color-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+        .color-btn {
+            width: 100%; aspect-ratio: 1; border-radius: 50%;
+            border: 2px solid transparent; cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            transition: all 0.1s; touch-action: manipulation;
+        }
+        .color-btn.active-color {
+            border: 3px solid white; transform: scale(1.1);
+            box-shadow: 0 0 8px #ffffffcc;
+        }
+
+        .ready-btn {
+            background: linear-gradient(160deg, #2196F3, #1565C0) !important;
+            color: white !important;
+            font-weight: 600; height: 48px !important; font-size: 1rem !important;
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.5), inset 0 1px 2px rgba(255,255,255,0.2) !important;
+            transition: all 0.2s !important;
+        }
+        .ready-btn:active { transform: scale(0.94); }
+        .ready-btn .btn-label { font-size: 0.68rem !important; color: #e8f4ff !important; }
+        .ready-btn.ready {
+            background: linear-gradient(160deg, #FFA726, #EF6C00) !important;
+            box-shadow: 0 4px 12px rgba(255, 167, 38, 0.5), inset 0 1px 2px rgba(255,255,255,0.2) !important;
+            animation: pulseReady 1.2s infinite;
+        }
+        @keyframes pulseReady {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .finish-btn {
+            background: linear-gradient(160deg, #4CAF50, #388E3C) !important;
+            color: white !important;
+            font-weight: 600; height: 44px !important; font-size: 1rem !important;
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.5), inset 0 1px 2px rgba(255,255,255,0.2) !important;
+            transition: all 0.2s !important;
+        }
+        .finish-btn:active { transform: scale(0.94); }
+        .finish-btn .btn-label { font-size: 0.62rem !important; color: #e8f4ff !important; }
+        .finish-btn.finished {
+            background: linear-gradient(160deg, #616161, #424242) !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.1) !important;
+            cursor: not-allowed;
+        }
+        .finish-btn.finished .btn-label { color: #b0b0b0 !important; }
+
+        .canvas-area.finished { position: relative; }
+        .canvas-area.finished::after {
+            content: '✅ 已完成';
+            position: absolute;
+            top: 60px; right: 16px;
+            background: rgba(76, 175, 80, 0.9);
+            color: white;
+            padding: 6px 14px; border-radius: 40px;
+            font-size: 0.8rem; font-weight: 600;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            z-index: 10;
+        }
+        .canvas-area.finished canvas { cursor: not-allowed; opacity: 0.92; }
+
+        .canvas-area {
+            flex: 1 1 0; min-width: 0;
+            display: flex; flex-direction: column;
+            background: #242433; border-radius: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.05);
+            overflow: hidden;
+            transition: box-shadow 0.3s;
+        }
+        .canvas-area.finished { box-shadow: 0 0 0 3px #4CAF50, 0 8px 20px rgba(0,0,0,0.6); }
+        .canvas-area.locked { box-shadow: 0 0 0 3px #FFA726, 0 8px 20px rgba(0,0,0,0.6); }
+        .canvas-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 6px 12px; background: #2e2e42;
+            border-bottom: 1px solid #3f3f58;
+            gap: 8px;
+        }
+        .player-badge {
+            display: flex; align-items: center; gap: 6px;
+            padding: 2px 12px; border-radius: 50px;
+            font-size: 0.85rem; font-weight: 500;
+        }
+        .player-badge.left-badge { background: #2c4a5e; color: #b3e4ff; }
+        .player-badge.right-badge { background: #5e3c4a; color: #ffcfcf; }
+        .header-timers { display: flex; align-items: center; gap: 8px; }
+        .side-count {
+            display: none; background: #E63946; color: #fff;
+            font-size: 1.05rem; font-weight: 700; border-radius: 50%;
+            width: 34px; height: 34px; align-items: center; justify-content: center;
+            box-shadow: 0 0 12px rgba(230, 57, 70, 0.6);
+            animation: countPulse 1s ease infinite;
+        }
+        .side-count.show { display: flex; }
+        .side-clock {
+            background: #3a3a55; color: #ffe08a;
+            font-size: 0.95rem; font-weight: 600; padding: 3px 10px;
+            border-radius: 20px; letter-spacing: 0.5px;
+        }
+        .side-clock.warning { color: #ff5d5d; animation: pulseReady 1s infinite; }
+
+        .canvas-wrapper {
+            padding: 0; background: #1e1e2b;
+            display: flex; justify-content: center; align-items: center;
+            flex: 1; min-height: 0;
+            position: relative;
+        }
+        .canvas-square {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: #fefefe;
+            border-radius: 14px;
+            box-shadow: inset 0 0 0 1px #00000033, 0 6px 14px rgba(0,0,0,0.5);
+            cursor: crosshair; touch-action: none;
+        }
+        canvas.moving { cursor: move !important; }
+        canvas:active { box-shadow: inset 0 0 0 2px #3f9eff, 0 6px 14px black; }
+
+        /* ★ 橡皮方块：与橡皮笔迹宽度(14px)保持一致 */
+        .eraser-cursor {
+            position: absolute;
+            width: 14px; height: 14px;
+            border: 2px solid #2196F3;
+            background: rgba(33, 150, 243, 0.3);
+            border-radius: 4px;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 15;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.7), 0 2px 6px rgba(0,0,0,0.4);
+            display: none;
+            transition: opacity 0.1s;
+        }
+        .eraser-cursor.show { display: block; }
+
+        .floating-controls {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            z-index: 20;
+        }
+        .floating-controls > * { pointer-events: auto; }
+        .rotate-handle, .delete-handle, .vertex-handle {
+            position: absolute;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: none;
+            cursor: pointer;
+        }
+        .rotate-handle {
+            width: 58px; height: 58px;
+            background: rgba(255, 255, 255, 0.97);
+            border: 4px solid #4CAF50;
+            font-size: 1.7rem; color: #4CAF50;
+            cursor: grab;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.5), 0 0 0 5px rgba(76, 175, 80, 0.28);
+        }
+        .rotate-handle:hover { background: #e8ffe8; }
+        .rotate-handle:active { cursor: grabbing; }
+        .delete-handle {
+            width: 52px; height: 52px;
+            background: rgba(255, 255, 255, 0.97);
+            border: 4px solid #E63946;
+            font-size: 1.5rem; color: #E63946;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.5), 0 0 0 5px rgba(230, 57, 70, 0.28);
+        }
+        .delete-handle:hover { background: #ffe8e8; }
+        .vertex-handle {
+            width: 36px; height: 36px;
+            background: rgba(255, 255, 255, 0.97);
+            border: 4px solid #FF6B00;
+            font-size: 0.9rem; color: #FF6B00;
+            cursor: move;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5), 0 0 0 4px rgba(255, 107, 0, 0.25);
+            z-index: 30;
+        }
+        .vertex-handle:hover { background: #fff0e0; }
+
+        .reference-panel {
+            flex: 0 0 260px; background: #202031; border-radius: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.05);
+            display: flex; flex-direction: column; overflow: hidden;
+            border: 1px solid #3f3f5a;
+        }
+        .reference-header {
+            padding: 8px 12px; background: #2a2a42; color: #cbd5f0;
+            font-size: 0.85rem; font-weight: 500;
+            display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 1px solid #3f3f58;
+        }
+        .reference-header .label { display: flex; align-items: center; gap: 6px; }
+        .reference-badge {
+            background: #3a3a55; padding: 2px 10px; border-radius: 40px;
+            font-size: 0.65rem; color: #b9c6e0;
+        }
+        .reference-canvas-wrapper {
+            flex: 1; display: flex; align-items: center; justify-content: center;
+            padding: 10px; background: #181825;
+        }
+        #reference-canvas {
+            width: 100%; height: auto; aspect-ratio: 1 / 1;
+            background: #ffffff; border-radius: 14px;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.7), inset 0 0 0 1px #ffffff33;
+            display: block; pointer-events: none;
+        }
+        .reference-footer {
+            padding: 6px 10px; background: #202031; color: #7e8aa8;
+            font-size: 0.65rem; text-align: center;
+            border-top: 1px solid #2f2f47;
+        }
+        .ref-actions { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
+        .ref-action-btn {
+            background: #3a3a55; border: none; color: #d8e0f0;
+            border-radius: 30px; padding: 7px 14px; font-size: 0.78rem;
+            cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            transition: all 0.1s; touch-action: manipulation;
+        }
+        .ref-action-btn:active { transform: scale(0.93); }
+        .ref-action-btn:disabled {
+            opacity: 0.4; cursor: not-allowed;
+            box-shadow: none; transform: none;
+        }
+
+        .countdown-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 2000; opacity: 0; pointer-events: none;
+            transition: opacity 0.3s; backdrop-filter: blur(8px);
+        }
+        .countdown-overlay.show { opacity: 1; pointer-events: auto; }
+        .countdown-number {
+            font-size: 16rem; font-weight: 900;
+            color: #ffd966;
+            text-shadow: 0 0 60px #ffd966, 0 0 120px #ffa000;
+            line-height: 1;
+            animation: countPulse 1s ease infinite;
+        }
+        @keyframes countPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); }
+        }
+        .countdown-text {
+            color: #eef2fa; font-size: 1.6rem;
+            font-weight: 300; letter-spacing: 2px; margin-top: 10px;
+        }
+
+        .selection-hint {
+            position: absolute; bottom: 12px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30,30,50,0.9); color: #ffd966;
+            font-size: 0.7rem; padding: 4px 14px;
+            border-radius: 40px; border: 1px solid #ffd96655;
+            pointer-events: none; opacity: 0;
+            transition: opacity 0.2s; white-space: nowrap;
+            z-index: 25;
+        }
+        .selection-hint.show { opacity: 1; }
+
+        .both-ready-toast {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%) scale(0.9);
+            background: linear-gradient(160deg, #2196F3, #1565C0);
+            color: white; padding: 20px 40px;
+            border-radius: 60px; font-size: 1.4rem; font-weight: 600;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+            z-index: 1000; opacity: 0; pointer-events: none;
+            transition: all 0.4s; letter-spacing: 1px;
+        }
+        .both-ready-toast.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        @media (max-width: 1300px) {
+            .side-toolbar { flex: 0 0 96px; }
+            .reference-panel { flex: 0 0 210px; }
+            .side-toolbar .tool-btn { height: 38px; font-size: 0.95rem; }
+        }
+        @media (max-width: 1100px) {
+            .side-toolbar { flex: 0 0 84px; padding: 6px 5px; }
+            .reference-panel { flex: 0 0 170px; }
+            .side-toolbar .tool-btn { height: 34px; font-size: 0.85rem; }
+            .side-toolbar .tool-btn .btn-label { display: none; }
+        }
+
+        /* ===== 新增：粗细、结果弹窗、确认弹窗 ===== */
+        .top-action-btn {
+            background: #3a3a55; border: none; color: #eef2fa;
+            width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+            font-size: 1rem; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            transition: all 0.1s; touch-action: manipulation;
+        }
+        .top-action-btn:active { transform: scale(0.9); }
+
+        .width-line { display: block; background: #eef2fa; border-radius: 3px; }
+
+        .result-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.82);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 3000; opacity: 0; pointer-events: none;
+            transition: opacity 0.3s; backdrop-filter: blur(6px);
+            max-height: 100vh; overflow-y: auto; padding: 24px 0;
+        }
+        .result-overlay.show { opacity: 1; pointer-events: auto; }
+        .result-title { color: #ffd966; font-size: 2.2rem; font-weight: 800; margin-bottom: 18px; letter-spacing: 2px; text-align: center; }
+        .result-row { display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+        .result-card { background: #242433; border-radius: 18px; padding: 16px 22px; text-align: center; box-shadow: 0 12px 30px rgba(0,0,0,0.5); }
+        .result-card canvas { width: auto; height: auto; max-width: 400px; max-height: 400px; border-radius: 12px; border: 4px solid transparent; background: #fff; }
+        .result-card.left-card canvas { border-color: #3f9eff; }
+        .result-card.right-card canvas { border-color: #ff6b9d; }
+        .result-card .player-name { color: #eef2fa; font-size: 1.1rem; margin-top: 10px; }
+        .result-ref-wrap { text-align: center; margin-bottom: 16px; }
+        .result-ref-label { color: #9aa7c7; font-size: 0.9rem; margin-bottom: 8px; letter-spacing: 2px; font-weight: 600; }
+        .result-ref-wrap canvas { width: auto; height: auto; max-width: 230px; max-height: 230px; border-radius: 12px; border: 3px solid #ffd966; background: #fff; box-shadow: 0 10px 28px rgba(0,0,0,0.55); }
+        .result-actions { display: flex; gap: 14px; margin-top: 28px; flex-wrap: wrap; justify-content: center; }
+        .result-btn {
+            border: none; border-radius: 40px; padding: 14px 28px;
+            font-size: 1.1rem; font-weight: 600; cursor: pointer; color: #fff;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.4); transition: all 0.15s;
+            touch-action: manipulation;
+        }
+        .result-btn:active { transform: scale(0.94); }
+        .result-btn.restart { background: linear-gradient(160deg, #FFA726, #EF6C00); }
+        .result-btn.end { background: linear-gradient(160deg, #616161, #424242); }
+
+        .confirm-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 4000; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .confirm-overlay.show { opacity: 1; pointer-events: auto; }
+        .confirm-box { background: #242433; border-radius: 18px; padding: 26px 30px; text-align: center; box-shadow: 0 16px 40px rgba(0,0,0,0.6); max-width: 90vw; }
+        .confirm-box .confirm-text { color: #eef2fa; font-size: 1.1rem; margin-bottom: 18px; }
+        .confirm-actions { display: flex; gap: 12px; justify-content: center; }
+        .confirm-btn { border: none; border-radius: 40px; padding: 10px 26px; font-size: 1rem; cursor: pointer; color: #fff; font-weight: 600; touch-action: manipulation; }
+        .confirm-btn.ok { background: linear-gradient(160deg, #E63946, #b71c1c); }
+        .confirm-btn.cancel { background: #3a3a55; color: #d8e0f0; }
+
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="top-bar">
+            <div class="title-area">
+                <h1>🎨 双人画图 · 快乐比一比 <span>画得开心最重要</span></h1>
+            </div>
+            <div class="compare-area">
+                <span class="compare-label" id="status-label">✨ 双方都点"我已准备"，倒计时后自动出图</span>
+                <div class="match-timer-area" id="matchTimerArea">
+                    <span class="match-clock" id="matchClock">⏱ 03:00</span>
+                    <div class="match-set" id="matchSet">
+                        <input type="number" id="matchMinutes" min="1" max="60" value="3" inputmode="numeric" title="比赛时长（分钟）">
+                        <span class="match-min">分钟</span>
+                        <button class="match-apply" id="matchApply" title="应用设定的比赛时长">设定</button>
+                    </div>
+                </div>
+                <button class="top-action-btn" id="restart-top" title="重新开始本局">🔄</button>
+            </div>
+        </div>
+
+        <div class="main-panels">
+            <div class="side-toolbar left-toolbar" id="toolbar-left">
+                <div class="toolbar-section">
+                    <div class="toolbar-section-title">绘画</div>
+                    <div class="tool-grid">
+                        <button class="tool-btn active-tool" data-tool="pen" title="画笔">✏️<span class="btn-label">画笔</span></button>
+                        <button class="tool-btn" data-tool="eraser" title="橡皮">🧽<span class="btn-label">橡皮</span></button>
+                        <button class="tool-btn" data-tool="fill" title="颜料桶">🪣<span class="btn-label">填充</span></button>
+                    </div>
+                    <div class="tool-grid" style="margin-top:6px;">
+                        <button class="tool-btn width-btn" data-width="2" title="细线条"><span class="width-line" style="width:18px;height:2px;"></span><span class="btn-label">细</span></button>
+                        <button class="tool-btn width-btn active-tool" data-width="4" title="中等线条"><span class="width-line" style="width:18px;height:5px;"></span><span class="btn-label">中</span></button>
+                        <button class="tool-btn width-btn" data-width="8" title="粗线条"><span class="width-line" style="width:18px;height:9px;"></span><span class="btn-label">粗</span></button>
+                    </div>
+                </div>
+                <div class="toolbar-section">
+                    <div class="toolbar-section-title">图形</div>
+                    <div class="tool-grid">
+                        <button class="tool-btn" data-tool="line" title="直线">📏<span class="btn-label">直线</span></button>
+                        <button class="tool-btn" data-tool="ellipse" title="椭圆">⬭<span class="btn-label">椭圆</span></button>
+                        <button class="tool-btn" data-tool="rect" title="矩形">▭<span class="btn-label">矩形</span></button>
+                        <button class="tool-btn" data-tool="triangle" title="三角形">🔺<span class="btn-label">三角</span></button>
+                        <button class="tool-btn" data-tool="select" title="选择/移动">👆<span class="btn-label">选择</span></button>
+                        <button class="tool-btn" data-tool="delete" title="删除选中">🗑️<span class="btn-label">删除</span></button>
+                    </div>
+                </div>
+                <div class="toolbar-section">
+                    <div class="toolbar-section-title">编辑</div>
+                    <div class="undo-redo-row">
+                        <button class="tool-btn" data-tool="undo" title="撤销">↩️<span class="btn-label">撤销</span></button>
+                        <button class="tool-btn" data-tool="redo" title="恢复">↪️<span class="btn-label">恢复</span></button>
+                    </div>
+                </div>
+                <div class="toolbar-section">
+                    <div class="toolbar-section-title">颜色</div>
+                    <div class="color-grid color-palette-left"></div>
+                </div>
+                <div class="toolbar-section">
+                    <button class="tool-btn ready-btn" id="ready-left" data-tool="ready" title="我已准备">
+                        🚀<span class="btn-label">我已准备</span>
+                    </button>
+                </div>
+                <div class="toolbar-section">
+                    <button class="tool-btn finish-btn" id="finish-left" data-tool="finish" title="我已完成">
+                        ✅<span class="btn-label">我已完成</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="canvas-area" id="canvas-area-left">
+                <div class="canvas-header">
+                    <div class="player-badge left-badge">👤 左边同学</div>
+                    <div class="header-timers">
+                        <span class="side-count" id="count-left">3</span>
+                        <span class="side-clock" id="clock-left">⏱ 03:00</span>
+                    </div>
+                </div>
+                <div class="canvas-wrapper" id="canvas-wrapper-left">
+                    <div class="canvas-square">
+                        <canvas id="canvas-left" width="800" height="800"></canvas>
+                        <div class="eraser-cursor" id="eraser-left"></div>
+                        <div class="floating-controls" id="floating-left"></div>
+                    </div>
+                    <div class="selection-hint" id="hint-left"></div>
+                </div>
+            </div>
+
+            <div class="reference-panel">
+                <div class="reference-header">
+                    <div class="label"><i>🖼️</i> 参考图</div>
+                    <div class="reference-badge">照着画</div>
+                </div>
+                <div class="reference-canvas-wrapper">
+                    <canvas id="reference-canvas" width="600" height="600"></canvas>
+                </div>
+                <div class="reference-footer">
+                    <div class="ref-actions">
+                        <button class="ref-action-btn" id="import-ref-btn" title="从电脑选择图片作为参考图">📁 导入图片</button>
+                        <button class="ref-action-btn" id="random-ref-btn" title="换一张随机参考图">🎲 随机图</button>
+                    </div>
+                    <div id="ref-footer">准备后自动出图</div>
+                </div>
+            </div>
+
+            <div class="canvas-area" id="canvas-area-right">
+                <div class="canvas-header">
+                    <div class="player-badge right-badge">👤 右边同学</div>
+                    <div class="header-timers">
+                        <span class="side-count" id="count-right">3</span>
+                        <span class="side-clock" id="clock-right">⏱ 03:00</span>
+                    </div>
+                </div>
+                <div class="canvas-wrapper" id="canvas-wrapper-right">
+                    <div class="canvas-square">
+                        <canvas id="canvas-right" width="800" height="800"></canvas>
+                        <div class="eraser-cursor" id="eraser-right"></div>
+                        <div class="floating-controls" id="floating-right"></div>
+                    </div>
+                    <div class="selection-hint" id="hint-right"></div>
+                </div>
+            </div>
+
+            <div class="side-toolbar right-toolbar" id="toolbar-right">
+                <div class="toolbar-section">
+                    <div class="toolbar-section-title">绘画</div>
+                    <div class="tool-grid">
+                        <button class="tool-btn active-tool" data-tool="pen" title="画笔">✏️<span class="btn-label">画笔</span></button>
+                        <button class="tool-btn" data-tool="eraser" title="橡皮">🧽<span class="btn-label">橡皮</span></button>
+                        <button class="tool-btn" data-tool="fill" title="颜料桶">🪣<span class="btn-label">填充</span></button>
+                    </div>
+                    <div class="tool-grid" style="margin-top:6px;">
+                        <button class="tool-btn width-btn" data-width="2" title="细线条"><span class="width-line" style="width:18px;height:2px;"></span><span class="btn-label">细</span></button>
+                        <button class="tool-btn width-btn active-tool" data-width="4" title="中等线条"><span class="width-line" style="width:18px;height:5px;"></span><span class="btn-label">中</span></button>
+                        <button class="tool-btn width-btn" data-width="8" title="粗线条"><span class="width-line" style="width:18px;height:9px;"></span><span class="btn-label">粗</span></button>
+                    </div>
+                </div>
+                <div class="toolbar-section">
+                    <div class="toolbar-section-title">图形</div>
+                    <div class="tool-grid">
+                        <button class="tool-btn" data-tool="line" title="直线">📏<span class="btn-label">直线</span></button>
+                        <button class="tool-btn" data-tool="ellipse" title="椭圆">⬭<span class="btn-label">椭圆</span></button>
+                        <button class="tool-btn" data-tool="rect" title="矩形">▭<span class="btn-label">矩形</span></button>
+                        <button class="tool-btn" data-tool="triangle" title="三角形">🔺<span class="btn-label">三角</span></button>
+                        <button class="tool-btn" data-tool="select" title="选择/移动">👆<span class="btn-label">选择</span></button>
+                        <button class="tool-btn" data-tool="delete" title="删除选中">🗑️<span class="btn-label">删除</span></button>
+                    </div>
+                </div>
+                <div class="toolbar-section">
+                    <div class="toolbar-section-title">编辑</div>
+                    <div class="undo-redo-row">
+                        <button class="tool-btn" data-tool="undo" title="撤销">↩️<span class="btn-label">撤销</span></button>
+                        <button class="tool-btn" data-tool="redo" title="恢复">↪️<span class="btn-label">恢复</span></button>
+                    </div>
+                </div>
+                <div class="toolbar-section">
+                    <div class="toolbar-section-title">颜色</div>
+                    <div class="color-grid color-palette-right"></div>
+                </div>
+                <div class="toolbar-section">
+                    <button class="tool-btn ready-btn" id="ready-right" data-tool="ready" title="我已准备">
+                        🚀<span class="btn-label">我已准备</span>
+                    </button>
+                </div>
+                <div class="toolbar-section">
+                    <button class="tool-btn finish-btn" id="finish-right" data-tool="finish" title="我已完成">
+                        ✅<span class="btn-label">我已完成</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="countdown-overlay" id="countdownOverlay">
+        <div class="countdown-number" id="countdownNumber">3</div>
+        <div class="countdown-text">准备开始画吧！</div>
+    </div>
+
+    <div class="both-ready-toast" id="bothReadyToast">🎉 双方都准备好了，倒计时开始！</div>
+
+    <div class="result-overlay" id="resultOverlay">
+        <div class="result-title">🎉 本局完成！大家一起欣赏讨论吧</div>
+        <div class="result-ref-wrap">
+            <div class="result-ref-label">📖 参考图</div>
+            <canvas id="result-ref" width="600" height="600"></canvas>
+        </div>
+        <div class="result-row">
+            <div class="result-card left-card">
+                <canvas id="result-left" width="400" height="400"></canvas>
+                <div class="player-name">👤 左边同学</div>
+            </div>
+            <div class="result-card right-card">
+                <canvas id="result-right" width="400" height="400"></canvas>
+                <div class="player-name">👤 右边同学</div>
+            </div>
+        </div>
+        <div class="result-actions">
+            <button class="result-btn restart" id="next-round-btn">🔄 再来一局</button>
+            <button class="result-btn end" id="end-game-btn">🏁 结束比赛</button>
+        </div>
+    </div>
+
+    <div class="confirm-overlay" id="confirmOverlay">
+        <div class="confirm-box">
+            <div class="confirm-text" id="confirmText">确定要清空画布吗？</div>
+            <div class="confirm-actions">
+                <button class="confirm-btn cancel" id="confirmCancel">取消</button>
+                <button class="confirm-btn ok" id="confirmOk">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const COLOR_PALETTE = [
+                '#000000', '#E63946', '#F4A261', '#FFD166',
+                '#2A9D8F', '#3A86FF', '#9D4EDD', '#FF69B4',
+                '#FFFFFF', '#8B4513', '#808080', '#90EE90'
+            ];
+
+            const REF_SIZE = 600;
+            const HIT_TOLERANCE = 25;
+            let customRefActive = false;
+            let customRefImg = null;
+
+            function createPlayerState() {
+                return {
+                    tool: 'pen', color: '#000000', lineWidth: 4,
+                    canvas: null, ctx: null,
+                    activeColorBtn: null,
+                    activePointerId: null,
+                    shapes: [], selectedShapeId: null,
+                    undoStack: [], redoStack: [],
+                    isDrawing: false,
+                    drawStartX: 0, drawStartY: 0,
+                    drawLastX: 0, drawLastY: 0,
+                    currentShape: null,
+                    savedImageData: null,
+                    dragMode: null,
+                    dragStartX: 0, dragStartY: 0,
+                    dragStartSnapshot: null,
+                    rotateCenterX: 0, rotateCenterY: 0,
+                    rotateStartAngle: 0,
+                    rotateShapeStartState: null,
+                    vertexIndex: -1,
+                    hintEl: null,
+                    floatingEl: null,
+                    eraserEl: null,
+                    ready: false, finished: false,
+                    started: false,
+                    matchRemain: 0, matchTimer: null,
+                    sideCountTimer: null,
+                    activeMoveHandler: null,
+                    activeUpHandler: null,
+                    drawMoveHandler: null,
+                    drawUpHandler: null,
+                };
+            }
+
+            const state = {
+                left: createPlayerState(),
+                right: createPlayerState()
+            };
+
+            // 屏蔽触摸长按 / 鼠标右键弹出的浏览器菜单
+            document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+            let shapeIdCounter = 1;
+            let gameStarted = false;
+            let lastRefIdx = -1;
+            let countdownTimer = null;
+            let confirmCallback = null;
+            let matchSeconds = 180;
+
+            const refCanvas = document.getElementById('reference-canvas');
+            const refCtx = refCanvas.getContext('2d');
+
+            function initRefCanvas() {
+                refCanvas.width = REF_SIZE;
+                refCanvas.height = REF_SIZE;
+                refCtx.fillStyle = '#FFFFFF';
+                refCtx.fillRect(0, 0, REF_SIZE, REF_SIZE);
+            }
+
+            // ============ 参考图 ============
+            function drawHouse(ctx) {
+                const cx = REF_SIZE / 2, cy = REF_SIZE / 2;
+                const bodyW = 200, bodyH = 180;
+                const bodyX = cx - bodyW / 2, bodyY = cy - bodyH / 2 + 40;
+                ctx.fillStyle = '#FFD166'; ctx.fillRect(bodyX, bodyY, bodyW, bodyH);
+                ctx.strokeStyle = '#8B4513'; ctx.lineWidth = 5; ctx.strokeRect(bodyX, bodyY, bodyW, bodyH);
+                ctx.fillStyle = '#E63946';
+                ctx.beginPath(); ctx.moveTo(bodyX - 20, bodyY); ctx.lineTo(cx, bodyY - 110); ctx.lineTo(bodyX + bodyW + 20, bodyY); ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#8B4513'; ctx.fillRect(cx - 25, bodyY + bodyH - 80, 50, 80);
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 4; ctx.strokeRect(cx - 25, bodyY + bodyH - 80, 50, 80);
+                ctx.fillStyle = '#3A86FF'; ctx.fillRect(bodyX + 25, bodyY + 40, 50, 50); ctx.fillRect(bodyX + bodyW - 75, bodyY + 40, 50, 50);
+                ctx.strokeStyle = '#000000'; ctx.strokeRect(bodyX + 25, bodyY + 40, 50, 50); ctx.strokeRect(bodyX + bodyW - 75, bodyY + 40, 50, 50);
+            }
+
+            function drawBus(ctx) {
+                const cx = REF_SIZE / 2, cy = REF_SIZE / 2;
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5;
+                // 乘客车厢（黄色）
+                ctx.fillStyle = '#FFD166';
+                ctx.fillRect(cx - 220, cy - 120, 330, 100);
+                ctx.strokeRect(cx - 220, cy - 120, 330, 100);
+                // 车头（右侧红色梯形）
+                ctx.fillStyle = '#E63946';
+                ctx.beginPath();
+                ctx.moveTo(cx + 110, cy - 20);
+                ctx.lineTo(cx + 110, cy - 105);
+                ctx.lineTo(cx + 160, cy - 105);
+                ctx.lineTo(cx + 195, cy - 20);
+                ctx.closePath(); ctx.fill(); ctx.stroke();
+                // 挡风玻璃
+                ctx.fillStyle = '#3A86FF';
+                ctx.beginPath();
+                ctx.moveTo(cx + 118, cy - 30);
+                ctx.lineTo(cx + 118, cy - 92);
+                ctx.lineTo(cx + 150, cy - 92);
+                ctx.lineTo(cx + 180, cy - 30);
+                ctx.closePath(); ctx.fill(); ctx.stroke();
+                // 乘客车窗 ×3
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 4;
+                ctx.fillStyle = '#3A86FF';
+                for (let i = 0; i < 3; i++) {
+                    const wx = cx - 200 + i * 85;
+                    ctx.fillRect(wx, cy - 105, 72, 45);
+                    ctx.strokeRect(wx, cy - 105, 72, 45);
+                }
+                // 车门线
+                ctx.strokeStyle = '#B8860B'; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(cx - 121, cy - 20); ctx.lineTo(cx - 121, cy - 112); ctx.stroke();
+                // 车头灯
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5;
+                ctx.fillStyle = '#FFD166';
+                ctx.fillRect(cx + 175, cy - 26, 18, 12);
+                ctx.strokeRect(cx + 175, cy - 26, 18, 12);
+                // 车轮（上移嵌入车体）
+                ctx.fillStyle = '#1D3557';
+                ctx.beginPath(); ctx.arc(cx - 160, cy + 5, 36, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.arc(cx + 60, cy + 5, 36, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                // 轮毂
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath(); ctx.arc(cx - 160, cy + 5, 14, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx + 60, cy + 5, 14, 0, Math.PI * 2); ctx.fill();
+            }
+
+            function drawTank(ctx) {
+                const cx = REF_SIZE / 2, cy = REF_SIZE / 2;
+                const bodyW = 320, bodyH = 90;
+                const bodyX = cx - bodyW / 2, bodyY = cy - 30;
+                ctx.fillStyle = '#2A9D8F'; ctx.fillRect(bodyX, bodyY, bodyW, bodyH);
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5; ctx.strokeRect(bodyX, bodyY, bodyW, bodyH);
+                ctx.fillStyle = '#2A9D8F';
+                ctx.beginPath(); ctx.arc(cx, bodyY, 65, Math.PI, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#1D3557'; ctx.fillRect(cx, bodyY - 80, 130, 22); ctx.strokeRect(cx, bodyY - 80, 130, 22);
+                for (let i = 0; i < 5; i++) {
+                    ctx.fillStyle = '#555555';
+                    ctx.beginPath(); ctx.arc(bodyX + 40 + i * 60, bodyY + bodyH + 10, 22, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                }
+            }
+
+            function drawCat(ctx) {
+                const cx = REF_SIZE / 2, cy = REF_SIZE / 2 + 40;
+                ctx.fillStyle = '#F4A261';
+                ctx.beginPath(); ctx.ellipse(cx, cy, 130, 85, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5; ctx.stroke();
+                const headY = cy - 140;
+                ctx.fillStyle = '#F4A261';
+                ctx.beginPath(); ctx.arc(cx, headY, 75, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(cx - 55, headY - 40); ctx.lineTo(cx - 70, headY - 110); ctx.lineTo(cx - 20, headY - 65); ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(cx + 55, headY - 40); ctx.lineTo(cx + 70, headY - 110); ctx.lineTo(cx + 20, headY - 65); ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#000000';
+                ctx.beginPath(); ctx.arc(cx - 25, headY - 5, 9, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx + 25, headY - 5, 9, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#E63946'; ctx.beginPath(); ctx.arc(cx, headY + 20, 7, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(cx - 35, headY + 20); ctx.lineTo(cx - 90, headY + 10);
+                ctx.moveTo(cx - 35, headY + 30); ctx.lineTo(cx - 90, headY + 35);
+                ctx.moveTo(cx + 35, headY + 20); ctx.lineTo(cx + 90, headY + 10);
+                ctx.moveTo(cx + 35, headY + 30); ctx.lineTo(cx + 90, headY + 35);
+                ctx.stroke();
+            }
+
+            function drawRocket(ctx) {
+                const cx = REF_SIZE / 2, cy = REF_SIZE / 2;
+                ctx.fillStyle = '#E63946';
+                ctx.beginPath(); ctx.moveTo(cx, cy - 200); ctx.lineTo(cx - 70, cy + 100); ctx.lineTo(cx + 70, cy + 100); ctx.closePath(); ctx.fill();
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5; ctx.stroke();
+                ctx.fillStyle = '#3A86FF';
+                ctx.beginPath(); ctx.arc(cx, cy - 70, 40, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#2A9D8F';
+                ctx.beginPath(); ctx.moveTo(cx - 70, cy + 100); ctx.lineTo(cx - 140, cy + 200); ctx.lineTo(cx - 70, cy + 170); ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(cx + 70, cy + 100); ctx.lineTo(cx + 140, cy + 200); ctx.lineTo(cx + 70, cy + 170); ctx.closePath(); ctx.fill(); ctx.stroke();
+                // 喷焰（矩形+尖，顶边与尾翼底边相接）
+                ctx.fillStyle = '#FFD166';
+                ctx.fillRect(cx - 70, cy + 170, 140, 70);
+                ctx.strokeRect(cx - 70, cy + 170, 140, 70);
+                ctx.beginPath(); ctx.moveTo(cx - 70, cy + 240); ctx.lineTo(cx, cy + 300); ctx.lineTo(cx + 70, cy + 240); ctx.closePath(); ctx.fill(); ctx.stroke();
+            }
+
+            function drawTree(ctx) {
+                const cx = REF_SIZE / 2, cy = REF_SIZE / 2;
+                const trunkW = 70, trunkH = 180;
+                const trunkX = cx - trunkW / 2, trunkY = cy + 20;
+                ctx.fillStyle = '#8B4513';
+                ctx.fillRect(trunkX, trunkY, trunkW, trunkH);
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 5;
+                ctx.strokeRect(trunkX, trunkY, trunkW, trunkH);
+                ctx.fillStyle = '#2A9D8F';
+                ctx.beginPath(); ctx.arc(cx, cy - 80, 100, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.arc(cx - 70, cy + 10, 75, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.arc(cx + 70, cy + 10, 75, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            }
+
+            function drawFish(ctx) {
+                const cx = REF_SIZE / 2, cy = REF_SIZE / 2;
+                ctx.fillStyle = '#FF69B4';
+                ctx.beginPath(); ctx.ellipse(cx + 20, cy, 140, 85, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5; ctx.stroke();
+                ctx.fillStyle = '#9D4EDD';
+                ctx.beginPath(); ctx.moveTo(cx - 110, cy); ctx.lineTo(cx - 200, cy - 80); ctx.lineTo(cx - 200, cy + 80); ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath(); ctx.arc(cx + 70, cy - 25, 28, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#000000';
+                ctx.beginPath(); ctx.arc(cx + 75, cy - 25, 13, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#9D4EDD';
+                ctx.beginPath(); ctx.moveTo(cx + 20, cy - 80); ctx.lineTo(cx, cy - 140); ctx.lineTo(cx + 60, cy - 90); ctx.closePath(); ctx.fill(); ctx.stroke();
+            }
+
+            function drawSailboat(ctx) {
+                const cx = REF_SIZE / 2, cy = REF_SIZE / 2;
+                const waterY = cy + 110;
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5;
+                ctx.fillStyle = '#3A86FF';
+                ctx.fillRect(50, waterY, REF_SIZE - 100, REF_SIZE - waterY - 40);
+                ctx.fillStyle = '#8B4513';
+                ctx.beginPath(); ctx.moveTo(cx - 130, waterY); ctx.lineTo(cx - 100, waterY - 85); ctx.lineTo(cx + 100, waterY - 85); ctx.lineTo(cx + 130, waterY); ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath(); ctx.moveTo(cx - 15, waterY - 75); ctx.lineTo(cx - 15, waterY - 250); ctx.lineTo(cx + 95, waterY - 75); ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(cx - 15, waterY - 75); ctx.lineTo(cx - 15, waterY - 250); ctx.lineTo(cx - 95, waterY - 75); ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#E63946';
+                ctx.beginPath(); ctx.moveTo(cx - 15, waterY - 250); ctx.lineTo(cx - 15, waterY - 285); ctx.lineTo(cx + 12, waterY - 250); ctx.closePath(); ctx.fill();
+            }
+
+            function drawHotAirBalloon(ctx) {
+                const cx = REF_SIZE / 2, cy = REF_SIZE / 2 - 40;
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5;
+                ctx.beginPath();
+                ctx.ellipse(cx, cy, 150, 180, 0, 0, Math.PI * 2);
+                ctx.save();
+                ctx.clip();
+                ctx.fillStyle = '#E63946';
+                ctx.fillRect(cx - 200, cy - 220, 400, 130);
+                ctx.fillStyle = '#FFD166';
+                ctx.fillRect(cx - 200, cy - 90, 400, 130);
+                ctx.fillStyle = '#2A9D8F';
+                ctx.fillRect(cx - 200, cy + 40, 400, 160);
+                ctx.restore();
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(cx - 30, cy + 155); ctx.lineTo(cx - 45, cy + 195);
+                ctx.moveTo(cx + 30, cy + 155); ctx.lineTo(cx + 45, cy + 195);
+                ctx.stroke();
+                ctx.fillStyle = '#8B4513';
+                ctx.fillRect(cx - 45, cy + 190, 90, 55);
+                ctx.strokeRect(cx - 45, cy + 190, 90, 55);
+            }
+
+            function drawSnowman(ctx) {
+                const cx = REF_SIZE / 2, cy = REF_SIZE / 2 + 30;
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5;
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath(); ctx.arc(cx, cy + 30, 95, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.arc(cx, cy - 100, 60, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#1D3557';
+                ctx.fillRect(cx - 45, cy - 190, 90, 35);
+                ctx.strokeRect(cx - 45, cy - 190, 90, 35);
+                ctx.fillRect(cx - 75, cy - 155, 150, 15);
+                ctx.strokeRect(cx - 75, cy - 155, 150, 15);
+                ctx.fillStyle = '#E63946';
+                ctx.fillRect(cx - 60, cy - 45, 120, 18);
+                ctx.strokeRect(cx - 60, cy - 45, 120, 18);
+                ctx.fillStyle = '#000000';
+                ctx.beginPath(); ctx.arc(cx - 22, cy - 110, 8, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx + 22, cy - 110, 8, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#F4A261';
+                ctx.beginPath(); ctx.moveTo(cx, cy - 90); ctx.lineTo(cx + 45, cy - 82); ctx.lineTo(cx, cy - 74); ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#1D3557';
+                ctx.beginPath(); ctx.arc(cx, cy - 10, 9, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx, cy + 35, 9, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#8B4513'; ctx.lineWidth = 8;
+                ctx.beginPath();
+                ctx.moveTo(cx - 90, cy - 20); ctx.lineTo(cx - 150, cy - 55);
+                ctx.moveTo(cx + 90, cy - 20); ctx.lineTo(cx + 150, cy - 55);
+                ctx.stroke();
+            }
+
+            function drawButterfly(ctx) {
+                const cx = REF_SIZE / 2, cy = REF_SIZE / 2;
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5;
+                ctx.fillStyle = '#FF69B4';
+                ctx.beginPath(); ctx.ellipse(cx - 85, cy - 70, 75, 95, -0.3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.ellipse(cx + 85, cy - 70, 75, 95, 0.3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#FFD166';
+                ctx.beginPath(); ctx.ellipse(cx - 75, cy + 80, 60, 70, 0.3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.ellipse(cx + 75, cy + 80, 60, 70, -0.3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#1D3557';
+                ctx.beginPath(); ctx.ellipse(cx, cy, 18, 90, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(cx - 8, cy - 88); ctx.lineTo(cx - 35, cy - 130);
+                ctx.moveTo(cx + 8, cy - 88); ctx.lineTo(cx + 35, cy - 130);
+                ctx.stroke();
+                ctx.fillStyle = '#000000';
+                ctx.beginPath(); ctx.arc(cx - 35, cy - 130, 6, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx + 35, cy - 130, 6, 0, Math.PI * 2); ctx.fill();
+            }
+
+            function drawRobot(ctx) {
+                const cx = REF_SIZE / 2, cy = REF_SIZE / 2;
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5;
+                ctx.beginPath(); ctx.moveTo(cx, cy - 130); ctx.lineTo(cx, cy - 180); ctx.stroke();
+                ctx.fillStyle = '#E63946';
+                ctx.beginPath(); ctx.arc(cx, cy - 190, 15, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#3A86FF';
+                ctx.fillRect(cx - 75, cy - 130, 150, 100);
+                ctx.strokeRect(cx - 75, cy - 130, 150, 100);
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath(); ctx.arc(cx - 28, cy - 80, 18, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.arc(cx + 28, cy - 80, 18, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#1D3557';
+                ctx.beginPath(); ctx.arc(cx - 28, cy - 80, 8, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx + 28, cy - 80, 8, 0, Math.PI * 2); ctx.fill();
+                ctx.fillRect(cx - 20, cy - 45, 40, 8);
+                ctx.fillStyle = '#9D4EDD';
+                ctx.fillRect(cx - 85, cy - 25, 170, 140);
+                ctx.strokeRect(cx - 85, cy - 25, 170, 140);
+                ctx.fillStyle = '#FFD166';
+                ctx.beginPath(); ctx.arc(cx, cy + 25, 15, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#3A86FF';
+                ctx.fillRect(cx - 130, cy - 15, 45, 90);
+                ctx.strokeRect(cx - 130, cy - 15, 45, 90);
+                ctx.fillRect(cx + 85, cy - 15, 45, 90);
+                ctx.strokeRect(cx + 85, cy - 15, 45, 90);
+                ctx.fillRect(cx - 60, cy + 115, 45, 85);
+                ctx.strokeRect(cx - 60, cy + 115, 45, 85);
+                ctx.fillRect(cx + 15, cy + 115, 45, 85);
+                ctx.strokeRect(cx + 15, cy + 115, 45, 85);
+            }
+
+            function drawWatermelon(ctx) {
+                const cx = REF_SIZE / 2, cy = REF_SIZE / 2;
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5;
+                // 绿色瓜皮（大三角）
+                ctx.fillStyle = '#2A9D8F';
+                ctx.beginPath(); ctx.moveTo(cx - 135, cy - 95); ctx.lineTo(cx + 135, cy - 95); ctx.lineTo(cx, cy + 140); ctx.closePath(); ctx.fill(); ctx.stroke();
+                // 白皮
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath(); ctx.moveTo(cx - 135, cy - 80); ctx.lineTo(cx + 135, cy - 80); ctx.lineTo(cx, cy + 140); ctx.closePath(); ctx.fill(); ctx.stroke();
+                // 红瓤
+                ctx.fillStyle = '#E63946';
+                ctx.beginPath(); ctx.moveTo(cx - 135, cy - 65); ctx.lineTo(cx + 135, cy - 65); ctx.lineTo(cx, cy + 140); ctx.closePath(); ctx.fill(); ctx.stroke();
+                // 黑籽
+                ctx.fillStyle = '#1D3557';
+                for (let i = 0; i < 7; i++) {
+                    const t = 0.12 + i * 0.11;
+                    ctx.beginPath(); ctx.ellipse(cx - 100 + i * 34, cy - 18 - i * 6, 7, 5, 0.4, 0, Math.PI * 2); ctx.fill();
+                }
+            }
+
+            function drawMushroom(ctx) {
+                const cx = REF_SIZE / 2, cy = REF_SIZE / 2;
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5;
+                // 菌柄
+                ctx.fillStyle = '#FFF3E0';
+                ctx.fillRect(cx - 42, cy - 10, 84, 120);
+                ctx.strokeRect(cx - 42, cy - 10, 84, 120);
+                // 红色菌盖（半圆，底边覆盖菌柄顶部）
+                ctx.fillStyle = '#E63946';
+                ctx.beginPath(); ctx.arc(cx, cy - 5, 115, Math.PI, 0); ctx.fill(); ctx.stroke();
+                // 白点
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath(); ctx.arc(cx - 45, cy - 65, 14, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.arc(cx + 40, cy - 80, 12, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.arc(cx, cy - 105, 13, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                // 草地
+                ctx.fillStyle = '#2A9D8F';
+                ctx.beginPath(); ctx.ellipse(cx, cy + 115, 135, 18, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            }
+
+            function drawIceCream(ctx) {
+                const cx = REF_SIZE / 2, cy = REF_SIZE / 2;
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5;
+                // 蛋筒（三角）
+                ctx.fillStyle = '#E0A96D';
+                ctx.beginPath(); ctx.moveTo(cx - 80, cy - 10); ctx.lineTo(cx + 80, cy - 10); ctx.lineTo(cx, cy + 150); ctx.closePath(); ctx.fill(); ctx.stroke();
+                // 蛋筒斜线
+                ctx.strokeStyle = '#B07A42'; ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(cx - 40, cy - 10); ctx.lineTo(cx, cy + 150);
+                ctx.moveTo(cx + 40, cy - 10); ctx.lineTo(cx, cy + 150);
+                ctx.moveTo(cx - 80, cy - 10); ctx.lineTo(cx - 28, cy + 105);
+                ctx.moveTo(cx + 80, cy - 10); ctx.lineTo(cx + 28, cy + 105);
+                ctx.stroke();
+                // 雪糕球
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5;
+                ctx.fillStyle = '#FFD166';
+                ctx.beginPath(); ctx.arc(cx, cy - 60, 90, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                // 樱桃
+                ctx.fillStyle = '#E63946';
+                ctx.beginPath(); ctx.arc(cx, cy - 140, 18, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            }
+
+            function drawApple(ctx) {
+                const cx = REF_SIZE / 2, cy = REF_SIZE / 2 + 20;
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5;
+                ctx.fillStyle = '#E63946';
+                ctx.beginPath(); ctx.arc(cx, cy, 110, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                // 果梗
+                ctx.fillStyle = '#8B4513';
+                ctx.fillRect(cx - 9, cy - 118, 18, 42);
+                ctx.strokeRect(cx - 9, cy - 118, 18, 42);
+                // 叶子
+                ctx.fillStyle = '#2A9D8F';
+                ctx.beginPath(); ctx.ellipse(cx + 32, cy - 102, 42, 19, -0.6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                // 高光
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath(); ctx.arc(cx - 38, cy - 42, 13, 0, Math.PI * 2); ctx.fill();
+            }
+
+            function drawCar(ctx) {
+                const cx = REF_SIZE / 2, cy = REF_SIZE / 2;
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5;
+                // 车身（右侧为车头）
+                ctx.fillStyle = '#E63946';
+                ctx.fillRect(cx - 135, cy - 25, 270, 72);
+                ctx.strokeRect(cx - 135, cy - 25, 270, 72);
+                // 驾驶室（左侧梯形车顶）
+                ctx.beginPath();
+                ctx.moveTo(cx - 120, cy - 25);
+                ctx.lineTo(cx - 120, cy - 92);
+                ctx.lineTo(cx - 20, cy - 92);
+                ctx.lineTo(cx + 10, cy - 25);
+                ctx.closePath(); ctx.fill(); ctx.stroke();
+                // 车窗
+                ctx.fillStyle = '#3A86FF';
+                ctx.beginPath();
+                ctx.moveTo(cx - 105, cy - 30);
+                ctx.lineTo(cx - 105, cy - 80);
+                ctx.lineTo(cx - 30, cy - 80);
+                ctx.lineTo(cx - 12, cy - 30);
+                ctx.closePath(); ctx.fill(); ctx.stroke();
+                // 车门线
+                ctx.strokeStyle = '#8B2635'; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(cx - 65, cy - 25); ctx.lineTo(cx - 65, cy + 47); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(cx - 30, cy - 25); ctx.lineTo(cx - 30, cy + 47); ctx.stroke();
+                // 车头灯（右侧）
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 5;
+                ctx.fillStyle = '#FFD166';
+                ctx.fillRect(cx + 120, cy - 18, 16, 14);
+                ctx.strokeRect(cx + 120, cy - 18, 16, 14);
+                // 轮子
+                ctx.fillStyle = '#1D3557';
+                ctx.beginPath(); ctx.arc(cx - 78, cy + 52, 32, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.arc(cx + 78, cy + 52, 32, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                // 轮毂
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath(); ctx.arc(cx - 78, cy + 52, 13, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx + 78, cy + 52, 13, 0, Math.PI * 2); ctx.fill();
+            }
+
+            const PICTURE_GENERATORS = [
+                { name: '房子', fn: drawHouse },
+                { name: '公交车', fn: drawBus },
+                { name: '坦克', fn: drawTank },
+                { name: '小猫', fn: drawCat },
+                { name: '火箭', fn: drawRocket },
+                { name: '大树', fn: drawTree },
+                { name: '小鱼', fn: drawFish },
+                { name: '帆船', fn: drawSailboat },
+                { name: '热气球', fn: drawHotAirBalloon },
+                { name: '雪人', fn: drawSnowman },
+                { name: '蝴蝶', fn: drawButterfly },
+                { name: '机器人', fn: drawRobot },
+                { name: '西瓜', fn: drawWatermelon },
+                { name: '蘑菇', fn: drawMushroom },
+                { name: '冰激凌', fn: drawIceCream },
+                { name: '苹果', fn: drawApple },
+                { name: '汽车', fn: drawCar },
+            ];
+
+            function generateRandomReference() {
+                if (customRefActive && customRefImg) {
+                    drawRefImageContain(customRefImg);
+                    document.getElementById('ref-footer').textContent = '本张参考图：自定义图片';
+                    return;
+                }
+                refCtx.fillStyle = '#FFFFFF';
+                refCtx.fillRect(0, 0, REF_SIZE, REF_SIZE);
+                let idx = Math.floor(Math.random() * PICTURE_GENERATORS.length);
+                if (PICTURE_GENERATORS.length > 1 && idx === lastRefIdx) idx = (idx + 1) % PICTURE_GENERATORS.length;
+                lastRefIdx = idx;
+                const pic = PICTURE_GENERATORS[idx];
+                pic.fn(refCtx);
+                document.getElementById('ref-footer').textContent = `本张参考图：${pic.name}`;
+            }
+
+            // ============ 图形绘制 ============
+            function drawShapeOnCtx(ctx, shape) {
+                if (shape.type === 'fill') {
+                    performFloodFill(ctx, shape.x, shape.y, shape.color, ctx.canvas.width, ctx.canvas.height);
+                    return;
+                }
+                ctx.strokeStyle = shape.color;
+                ctx.lineWidth = shape.lineWidth;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                if (shape.type === 'pen') {
+                    if (shape.points.length === 1) {
+                        ctx.fillStyle = shape.color;
+                        ctx.beginPath();
+                        ctx.arc(shape.points[0].x, shape.points[0].y, shape.lineWidth / 2, 0, Math.PI * 2);
+                        ctx.fill();
+                        return;
+                    }
+                    if (shape.points.length < 2) return;
+                    ctx.beginPath();
+                    ctx.moveTo(shape.points[0].x, shape.points[0].y);
+                    for (let i = 1; i < shape.points.length; i++) ctx.lineTo(shape.points[i].x, shape.points[i].y);
+                    ctx.stroke();
+                } else if (shape.type === 'line') {
+                    ctx.beginPath(); ctx.moveTo(shape.x1, shape.y1); ctx.lineTo(shape.x2, shape.y2); ctx.stroke();
+                } else if (shape.type === 'ellipse') {
+                    ctx.beginPath();
+                    ctx.ellipse(shape.cx, shape.cy, Math.abs(shape.rx), Math.abs(shape.ry), shape.rotation || 0, 0, Math.PI * 2);
+                    ctx.stroke();
+                } else if (shape.type === 'rect') {
+                    ctx.save();
+                    ctx.translate(shape.x + shape.w / 2, shape.y + shape.h / 2);
+                    ctx.rotate(shape.rotation || 0);
+                    ctx.beginPath();
+                    ctx.rect(-shape.w / 2, -shape.h / 2, shape.w, shape.h);
+                    ctx.stroke();
+                    ctx.restore();
+                } else if (shape.type === 'triangle') {
+                    ctx.beginPath();
+                    ctx.moveTo(shape.x1, shape.y1); ctx.lineTo(shape.x2, shape.y2); ctx.lineTo(shape.x3, shape.y3);
+                    ctx.closePath(); ctx.stroke();
+                }
+            }
+
+            function performFloodFill(ctx, startX, startY, fillColor, w, h) {
+                const imgData = ctx.getImageData(0, 0, w, h);
+                const data = imgData.data;
+                const startXInt = Math.floor(startX), startYInt = Math.floor(startY);
+                if (startXInt < 0 || startXInt >= w || startYInt < 0 || startYInt >= h) return;
+                const startIdx = (startYInt * w + startXInt) * 4;
+                const startR = data[startIdx], startG = data[startIdx + 1], startB = data[startIdx + 2], startA = data[startIdx + 3];
+                const fillRGB = hexToRgb(fillColor);
+                if (!fillRGB) return;
+                if (startR === fillRGB.r && startG === fillRGB.g && startB === fillRGB.b && startA === 255) return;
+                const tolerance = 30;
+                const match = (idx) => {
+                    const r = data[idx], g = data[idx + 1], b = data[idx + 2], a = data[idx + 3];
+                    return Math.abs(r - startR) <= tolerance && Math.abs(g - startG) <= tolerance &&
+                           Math.abs(b - startB) <= tolerance && Math.abs(a - startA) <= tolerance;
+                };
+                const stack = [[startXInt, startYInt]];
+                const visited = new Uint8Array(w * h);
+                while (stack.length > 0) {
+                    const [x, y] = stack.pop();
+                    if (x < 0 || x >= w || y < 0 || y >= h) continue;
+                    const pos = y * w + x;
+                    if (visited[pos]) continue;
+                    const idx = pos * 4;
+                    if (!match(idx)) continue;
+                    visited[pos] = 1;
+                    data[idx] = fillRGB.r; data[idx + 1] = fillRGB.g; data[idx + 2] = fillRGB.b; data[idx + 3] = 255;
+                    stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+                }
+                ctx.putImageData(imgData, 0, 0);
+            }
+
+            function hexToRgb(hex) {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
+            }
+
+            function getShapeBounds(shape) {
+                if (shape.type === 'fill') return { x: shape.x - 5, y: shape.y - 5, w: 10, h: 10 };
+                if (shape.type === 'pen') {
+                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                    shape.points.forEach(p => {
+                        if (p.x < minX) minX = p.x;
+                        if (p.y < minY) minY = p.y;
+                        if (p.x > maxX) maxX = p.x;
+                        if (p.y > maxY) maxY = p.y;
+                    });
+                    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+                } else if (shape.type === 'line') {
+                    const minX = Math.min(shape.x1, shape.x2), minY = Math.min(shape.y1, shape.y2);
+                    return { x: minX, y: minY, w: Math.abs(shape.x2 - shape.x1), h: Math.abs(shape.y2 - shape.y1) };
+                } else if (shape.type === 'ellipse') {
+                    const rx = Math.abs(shape.rx), ry = Math.abs(shape.ry);
+                    return { x: shape.cx - rx, y: shape.cy - ry, w: rx * 2, h: ry * 2 };
+                } else if (shape.type === 'rect') {
+                    return { x: shape.x, y: shape.y, w: shape.w, h: shape.h };
+                } else if (shape.type === 'triangle') {
+                    const minX = Math.min(shape.x1, shape.x2, shape.x3), minY = Math.min(shape.y1, shape.y2, shape.y3);
+                    const maxX = Math.max(shape.x1, shape.x2, shape.x3), maxY = Math.max(shape.y1, shape.y2, shape.y3);
+                    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+                }
+                return { x: 0, y: 0, w: 0, h: 0 };
+            }
+
+            function drawSelectionHighlight(ctx, shape) {
+                if (shape.type === 'fill') return;
+                const b = getShapeBounds(shape);
+                const pad = 8;
+                ctx.save();
+                ctx.strokeStyle = '#3f9eff';
+                ctx.lineWidth = 3;
+                ctx.setLineDash([8, 5]);
+                ctx.strokeRect(b.x - pad, b.y - pad, b.w + pad * 2, b.h + pad * 2);
+                ctx.restore();
+            }
+
+            function redrawAll(side) {
+                const s = state[side];
+                const ctx = s.ctx;
+                const canvas = s.canvas;
+                if (!ctx || !canvas) return;
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                s.shapes.forEach(shape => drawShapeOnCtx(ctx, shape));
+                if (s.selectedShapeId !== null) {
+                    const shape = s.shapes.find(sh => sh.id === s.selectedShapeId);
+                    if (shape && shape.type !== 'fill') drawSelectionHighlight(ctx, shape);
+                }
+                updateFloatingControls(side);
+            }
+
+            function redrawCanvasOnly(side) {
+                const s = state[side];
+                const ctx = s.ctx;
+                const canvas = s.canvas;
+                if (!ctx || !canvas) return;
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                s.shapes.forEach(shape => drawShapeOnCtx(ctx, shape));
+                if (s.selectedShapeId !== null) {
+                    const shape = s.shapes.find(sh => sh.id === s.selectedShapeId);
+                    if (shape && shape.type !== 'fill') drawSelectionHighlight(ctx, shape);
+                }
+            }
+
+            // ============ 浮动控件 ============
+            function clearFloatingControls(side) {
+                const container = document.getElementById(`floating-${side}`);
+                if (container) container.innerHTML = '';
+            }
+
+            function canvasToSquare(side, canvasX, canvasY) {
+                const s = state[side];
+                const canvas = s.canvas;
+                const square = canvas.parentElement;
+                const canvasRect = canvas.getBoundingClientRect();
+                const squareRect = square.getBoundingClientRect();
+                const scaleX = canvasRect.width / canvas.width;
+                const scaleY = canvasRect.height / canvas.height;
+                const offsetX = canvasRect.left - squareRect.left;
+                const offsetY = canvasRect.top - squareRect.top;
+                return {
+                    x: offsetX + canvasX * scaleX,
+                    y: offsetY + canvasY * scaleY,
+                    scaleX, scaleY
+                };
+            }
+
+            function updateFloatingControls(side) {
+                const s = state[side];
+                const container = document.getElementById(`floating-${side}`);
+                if (!container) return;
+
+                if (s.finished || s.selectedShapeId === null) {
+                    container.innerHTML = '';
+                    return;
+                }
+
+                const shape = s.shapes.find(sh => sh.id === s.selectedShapeId);
+                if (!shape || shape.type === 'fill') { container.innerHTML = ''; return; }
+
+                const bounds = getShapeBounds(shape);
+                const centerX = bounds.x + bounds.w / 2;
+                const centerY = bounds.y + bounds.h / 2;
+
+                const pos = canvasToSquare(side, centerX, centerY);
+                const radius = Math.max(bounds.w * pos.scaleX, bounds.h * pos.scaleY) / 2 + 70;
+                const clampedRadius = Math.min(Math.max(radius, 90), 200);
+
+                container.innerHTML = '';
+
+                let rotEl = null;
+                if (shape.type === 'triangle' || shape.type === 'ellipse' || shape.type === 'rect') {
+                    const rotX = pos.x + clampedRadius * 0.7;
+                    const rotY = pos.y - clampedRadius * 0.7;
+                    rotEl = document.createElement('div');
+                    rotEl.className = 'rotate-handle';
+                    rotEl.innerHTML = '🔄';
+                    rotEl.title = '按住拖动旋转';
+                    rotEl.style.left = rotX + 'px';
+                    rotEl.style.top = rotY + 'px';
+                    container.appendChild(rotEl);
+                }
+
+                const delX = pos.x - clampedRadius * 0.7;
+                const delY = pos.y - clampedRadius * 0.7;
+                const delEl = document.createElement('div');
+                delEl.className = 'delete-handle';
+                delEl.innerHTML = '🗑️';
+                delEl.title = '点击删除';
+                delEl.style.left = delX + 'px';
+                delEl.style.top = delY + 'px';
+                container.appendChild(delEl);
+
+                if (shape.type === 'triangle') {
+                    const vertices = [
+                        { x: shape.x1, y: shape.y1, idx: 0 },
+                        { x: shape.x2, y: shape.y2, idx: 1 },
+                        { x: shape.x3, y: shape.y3, idx: 2 }
+                    ];
+                    vertices.forEach(v => {
+                        const vp = canvasToSquare(side, v.x, v.y);
+                        const vEl = document.createElement('div');
+                        vEl.className = 'vertex-handle';
+                        vEl.innerHTML = '●';
+                        vEl.title = '拖动改变顶点';
+                        vEl.style.left = vp.x + 'px';
+                        vEl.style.top = vp.y + 'px';
+                        vEl.dataset.vertexIdx = v.idx;
+                        container.appendChild(vEl);
+                    });
+                }
+
+                if (rotEl) bindRotateEvent(side, rotEl);
+                bindDeleteEvent(side, delEl);
+                if (shape.type === 'triangle') bindVertexEvents(side);
+            }
+
+            function bindRotateEvent(side, rotEl) {
+                const s = state[side];
+                function onDown(e) {
+                    if (s.finished || s.selectedShapeId === null) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const shape = s.shapes.find(sh => sh.id === s.selectedShapeId);
+                    if (!shape) return;
+                    const b = getShapeBounds(shape);
+                    s.dragMode = 'rotate';
+                    s.activePointerId = e.pointerId;
+                    s.rotateCenterX = b.x + b.w / 2;
+                    s.rotateCenterY = b.y + b.h / 2;
+                    const coords = getCanvasCoordsFromEvent(side, e);
+                    if (!coords) { s.dragMode = null; return; }
+                    s.rotateStartAngle = Math.atan2(coords.y - s.rotateCenterY, coords.x - s.rotateCenterX);
+                    s.rotateShapeStartState = JSON.parse(JSON.stringify(shape));
+                    s.dragStartSnapshot = JSON.parse(JSON.stringify(s.shapes));
+                    startGlobalDrag(side);
+                }
+                rotEl.addEventListener('pointerdown', onDown);
+            }
+
+            function bindDeleteEvent(side, delEl) {
+                const s = state[side];
+                function onDelete(e) {
+                    if (s.finished || s.selectedShapeId === null) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    pushUndo(side);
+                    s.shapes = s.shapes.filter(sh => sh.id !== s.selectedShapeId);
+                    s.selectedShapeId = null;
+                    redrawAll(side);
+                    updateHint(side);
+                }
+                delEl.addEventListener('click', onDelete);
+                delEl.addEventListener('pointerdown', (e) => { e.stopPropagation(); });
+            }
+
+            function bindVertexEvents(side) {
+                const s = state[side];
+                const container = document.getElementById(`floating-${side}`);
+                const vertexEls = container.querySelectorAll('.vertex-handle');
+                vertexEls.forEach(el => {
+                    const idx = parseInt(el.dataset.vertexIdx);
+                    function onDown(e) {
+                        if (s.finished || s.selectedShapeId === null) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const shape = s.shapes.find(sh => sh.id === s.selectedShapeId);
+                        if (!shape || shape.type !== 'triangle') return;
+                        s.dragMode = 'vertex';
+                        s.activePointerId = e.pointerId;
+                        s.vertexIndex = idx;
+                        s.dragStartSnapshot = JSON.parse(JSON.stringify(s.shapes));
+                        startGlobalDrag(side);
+                    }
+                    el.addEventListener('pointerdown', onDown);
+                });
+            }
+
+            function startGlobalDrag(side) {
+                const s = state[side];
+                stopGlobalDrag(side);
+
+                const onMove = (ev) => {
+                    if (s.dragMode === null) return;
+                    if (ev.pointerId !== s.activePointerId) return;
+                    const coords = getCanvasCoordsFromEvent(side, ev);
+                    if (!coords) return;
+                    ev.preventDefault();
+                    ev.stopPropagation();
+
+                    if (s.dragMode === 'move') {
+                        const dx = coords.x - s.dragStartX;
+                        const dy = coords.y - s.dragStartY;
+                        s.dragStartX = coords.x;
+                        s.dragStartY = coords.y;
+                        const shape = s.shapes.find(sh => sh.id === s.selectedShapeId);
+                        if (shape) moveShape(shape, dx, dy);
+                        redrawCanvasOnly(side);
+                        updateFloatingPositions(side);
+                    } else if (s.dragMode === 'rotate') {
+                        const angle = Math.atan2(coords.y - s.rotateCenterY, coords.x - s.rotateCenterX);
+                        const deltaAngle = angle - s.rotateStartAngle;
+                        const shape = s.shapes.find(sh => sh.id === s.selectedShapeId);
+                        if (shape && s.rotateShapeStartState) {
+                            rotateShapeByAngle(shape, s.rotateShapeStartState, deltaAngle);
+                        }
+                        redrawCanvasOnly(side);
+                        updateFloatingPositions(side);
+                    } else if (s.dragMode === 'vertex') {
+                        const shape = s.shapes.find(sh => sh.id === s.selectedShapeId);
+                        if (shape && shape.type === 'triangle') {
+                            if (s.vertexIndex === 0) { shape.x1 = coords.x; shape.y1 = coords.y; }
+                            else if (s.vertexIndex === 1) { shape.x2 = coords.x; shape.y2 = coords.y; }
+                            else if (s.vertexIndex === 2) { shape.x3 = coords.x; shape.y3 = coords.y; }
+                        }
+                        redrawCanvasOnly(side);
+                        updateFloatingPositions(side);
+                    }
+                };
+
+                const onUp = (ev) => {
+                    if (s.dragMode === null) return;
+                    if (ev.pointerId !== s.activePointerId) return;
+                    ev.preventDefault && ev.preventDefault();
+                    ev.stopPropagation && ev.stopPropagation();
+                    if (s.dragStartSnapshot) {
+                        s.undoStack.push(s.dragStartSnapshot);
+                        if (s.undoStack.length > 30) s.undoStack.shift();
+                        s.redoStack = [];
+                        s.dragStartSnapshot = null;
+                    }
+                    s.rotateShapeStartState = null;
+                    s.vertexIndex = -1;
+                    s.dragMode = null;
+                    s.activePointerId = null;
+                    s.canvas.classList.remove('moving');
+                    redrawAll(side);
+                    stopGlobalDrag(side);
+                };
+
+                s.activeMoveHandler = onMove;
+                s.activeUpHandler = onUp;
+                window.addEventListener('pointermove', onMove, true);
+                window.addEventListener('pointerup', onUp, true);
+                window.addEventListener('pointercancel', onUp, true);
+            }
+
+            function stopGlobalDrag(side) {
+                const s = state[side];
+                if (s.activeMoveHandler) {
+                    window.removeEventListener('pointermove', s.activeMoveHandler, true);
+                    s.activeMoveHandler = null;
+                }
+                if (s.activeUpHandler) {
+                    window.removeEventListener('pointerup', s.activeUpHandler, true);
+                    window.removeEventListener('pointercancel', s.activeUpHandler, true);
+                    s.activeUpHandler = null;
+                }
+            }
+
+            function updateFloatingPositions(side) {
+                const s = state[side];
+                const container = document.getElementById(`floating-${side}`);
+                if (!container) return;
+                const shape = s.shapes.find(sh => sh.id === s.selectedShapeId);
+                if (!shape || shape.type === 'fill') return;
+                const bounds = getShapeBounds(shape);
+                const centerX = bounds.x + bounds.w / 2;
+                const centerY = bounds.y + bounds.h / 2;
+                const pos = canvasToSquare(side, centerX, centerY);
+                const radius = Math.max(bounds.w * pos.scaleX, bounds.h * pos.scaleY) / 2 + 70;
+                const clampedRadius = Math.min(Math.max(radius, 90), 200);
+
+                const rotEl = container.querySelector('.rotate-handle');
+                const delEl = container.querySelector('.delete-handle');
+                if (rotEl) {
+                    rotEl.style.left = (pos.x + clampedRadius * 0.7) + 'px';
+                    rotEl.style.top = (pos.y - clampedRadius * 0.7) + 'px';
+                }
+                if (delEl) {
+                    delEl.style.left = (pos.x - clampedRadius * 0.7) + 'px';
+                    delEl.style.top = (pos.y - clampedRadius * 0.7) + 'px';
+                }
+                if (shape.type === 'triangle') {
+                    const vertexEls = container.querySelectorAll('.vertex-handle');
+                    const verts = [
+                        { x: shape.x1, y: shape.y1 },
+                        { x: shape.x2, y: shape.y2 },
+                        { x: shape.x3, y: shape.y3 },
+                    ];
+                    vertexEls.forEach((el, i) => {
+                        if (i >= verts.length) return;
+                        const vp = canvasToSquare(side, verts[i].x, verts[i].y);
+                        el.style.left = vp.x + 'px';
+                        el.style.top = vp.y + 'px';
+                    });
+                }
+            }
+
+            // ============ 坐标 ============
+            function getCanvasCoordsFromEvent(side, e) {
+                const canvas = state[side].canvas;
+                const rect = canvas.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) return null;
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                let clientX, clientY;
+                if (e.touches && e.touches.length > 0) {
+                    clientX = e.touches[0].clientX; clientY = e.touches[0].clientY;
+                } else if (e.changedTouches && e.changedTouches.length > 0) {
+                    clientX = e.changedTouches[0].clientX; clientY = e.changedTouches[0].clientY;
+                } else if (typeof e.clientX === 'number') {
+                    clientX = e.clientX; clientY = e.clientY;
+                } else {
+                    return null;
+                }
+                const x = (clientX - rect.left) * scaleX;
+                const y = (clientY - rect.top) * scaleY;
+                return {
+                    x: Math.min(Math.max(x, 0), canvas.width),
+                    y: Math.min(Math.max(y, 0), canvas.height)
+                };
+            }
+
+            // ============ 命中 ============
+            function distToSegment(px, py, x1, y1, x2, y2) {
+                const A = px - x1, B = py - y1;
+                const C = x2 - x1, D = y2 - y1;
+                const dot = A * C + B * D;
+                const lenSq = C * C + D * D;
+                let param = -1;
+                if (lenSq !== 0) param = dot / lenSq;
+                let xx, yy;
+                if (param < 0) { xx = x1; yy = y1; }
+                else if (param > 1) { xx = x2; yy = y2; }
+                else { xx = x1 + param * C; yy = y1 + param * D; }
+                const dx = px - xx, dy = py - yy;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            function isPointOnShape(shape, px, py, tolerance = HIT_TOLERANCE) {
+                if (shape.type === 'fill') return false;
+                const t = tolerance;
+                if (shape.type === 'pen') {
+                    for (let i = 0; i < shape.points.length; i++) {
+                        const p = shape.points[i];
+                        if (Math.sqrt((p.x - px) ** 2 + (p.y - py) ** 2) <= t + shape.lineWidth / 2) return true;
+                    }
+                    return false;
+                } else if (shape.type === 'line') {
+                    return distToSegment(px, py, shape.x1, shape.y1, shape.x2, shape.y2) <= t + shape.lineWidth / 2;
+                } else if (shape.type === 'ellipse') {
+                    const rx = Math.abs(shape.rx), ry = Math.abs(shape.ry);
+                    if (rx < 1 || ry < 1) return false;
+                    const dx = (px - shape.cx) / rx, dy = (py - shape.cy) / ry;
+                    const norm = dx * dx + dy * dy;
+                    const avgRadius = (rx + ry) / 2;
+                    const normTol = (t + shape.lineWidth / 2) / Math.max(avgRadius, 1);
+                    return norm <= (1 + normTol) * (1 + normTol);
+                } else if (shape.type === 'rect') {
+                    const rot = shape.rotation || 0;
+                    let qx = px, qy = py;
+                    if (rot) {
+                        const rp = rotatePoint(px, py, shape.x + shape.w / 2, shape.y + shape.h / 2, -rot);
+                        qx = rp.x; qy = rp.y;
+                    }
+                    const { x, y, w, h } = shape;
+                    const onTop = Math.abs(qy - y) <= t && qx >= x - t && qx <= x + w + t;
+                    const onBottom = Math.abs(qy - (y + h)) <= t && qx >= x - t && qx <= x + w + t;
+                    const onLeft = Math.abs(qx - x) <= t && qy >= y - t && qy <= y + h + t;
+                    const onRight = Math.abs(qx - (x + w)) <= t && qy >= y - t && qy <= y + h + t;
+                    return onTop || onBottom || onLeft || onRight;
+                } else if (shape.type === 'triangle') {
+                    return distToSegment(px, py, shape.x1, shape.y1, shape.x2, shape.y2) <= t + shape.lineWidth / 2 ||
+                           distToSegment(px, py, shape.x2, shape.y2, shape.x3, shape.y3) <= t + shape.lineWidth / 2 ||
+                           distToSegment(px, py, shape.x3, shape.y3, shape.x1, shape.y1) <= t + shape.lineWidth / 2;
+                }
+                return false;
+            }
+
+            function findShapeAt(side, x, y) {
+                const s = state[side];
+                for (let i = s.shapes.length - 1; i >= 0; i--) {
+                    if (s.shapes[i].type === 'fill') continue;
+                    if (isPointOnShape(s.shapes[i], x, y)) return s.shapes[i];
+                }
+                return null;
+            }
+
+            // ============ 图形变换 ============
+            function moveShape(shape, dx, dy) {
+                if (shape.type === 'pen') shape.points.forEach(p => { p.x += dx; p.y += dy; });
+                else if (shape.type === 'line') { shape.x1 += dx; shape.y1 += dy; shape.x2 += dx; shape.y2 += dy; }
+                else if (shape.type === 'ellipse') { shape.cx += dx; shape.cy += dy; }
+                else if (shape.type === 'rect') { shape.x += dx; shape.y += dy; }
+                else if (shape.type === 'triangle') {
+                    shape.x1 += dx; shape.y1 += dy;
+                    shape.x2 += dx; shape.y2 += dy;
+                    shape.x3 += dx; shape.y3 += dy;
+                }
+            }
+
+            function rotatePoint(x, y, cx, cy, angle) {
+                const cos = Math.cos(angle), sin = Math.sin(angle);
+                const dx = x - cx, dy = y - cy;
+                return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
+            }
+
+            function rotateShapeByAngle(shape, originalShape, angle) {
+                if (originalShape.type === 'triangle') {
+                    const cx = (originalShape.x1 + originalShape.x2 + originalShape.x3) / 3;
+                    const cy = (originalShape.y1 + originalShape.y2 + originalShape.y3) / 3;
+                    const p1 = rotatePoint(originalShape.x1, originalShape.y1, cx, cy, angle);
+                    const p2 = rotatePoint(originalShape.x2, originalShape.y2, cx, cy, angle);
+                    const p3 = rotatePoint(originalShape.x3, originalShape.y3, cx, cy, angle);
+                    shape.x1 = p1.x; shape.y1 = p1.y;
+                    shape.x2 = p2.x; shape.y2 = p2.y;
+                    shape.x3 = p3.x; shape.y3 = p3.y;
+                } else if (originalShape.type === 'ellipse') {
+                    shape.rotation = (originalShape.rotation || 0) + angle;
+                } else if (originalShape.type === 'rect') {
+                    shape.rotation = (originalShape.rotation || 0) + angle;
+                }
+            }
+
+            function makePreviewShape(tool, x1, y1, x2, y2, color, lineWidth) {
+                const shape = { id: -1, type: tool, color: color, lineWidth: lineWidth || 4 };
+                if (tool === 'line') {
+                    shape.x1 = x1; shape.y1 = y1; shape.x2 = x2; shape.y2 = y2;
+                } else if (tool === 'ellipse') {
+                    shape.cx = (x1 + x2) / 2;
+                    shape.cy = (y1 + y2) / 2;
+                    shape.rx = Math.abs(x2 - x1) / 2;
+                    shape.ry = Math.abs(y2 - y1) / 2;
+                    shape.rotation = 0;
+                } else if (tool === 'rect') {
+                    shape.x = Math.min(x1, x2);
+                    shape.y = Math.min(y1, y2);
+                    shape.w = Math.abs(x2 - x1);
+                    shape.h = Math.abs(y2 - y1);
+                    shape.rotation = 0;
+                } else if (tool === 'triangle') {
+                    const dist = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+                    const halfWidth = Math.max(dist * 0.6, 10);
+                    shape.x1 = x1; shape.y1 = y1;
+                    shape.x2 = x2 + halfWidth; shape.y2 = y2;
+                    shape.x3 = x2 - halfWidth; shape.y3 = y2;
+                }
+                return shape;
+            }
+
+            function makeFinalShape(tool, x1, y1, x2, y2, color, lineWidth) {
+                const shape = makePreviewShape(tool, x1, y1, x2, y2, color, lineWidth);
+                shape.id = shapeIdCounter++;
+                return shape;
+            }
+
+            // ============ 撤销/恢复 ============
+            function pushUndo(side) {
+                const s = state[side];
+                const snapshot = JSON.parse(JSON.stringify(s.shapes));
+                s.undoStack.push(snapshot);
+                if (s.undoStack.length > 30) s.undoStack.shift();
+                s.redoStack = [];
+            }
+
+            function undo(side) {
+                const s = state[side];
+                if (s.finished || s.undoStack.length === 0) return;
+                s.redoStack.push(JSON.parse(JSON.stringify(s.shapes)));
+                s.shapes = s.undoStack.pop();
+                s.selectedShapeId = null;
+                redrawAll(side);
+                updateHint(side);
+            }
+
+            function redo(side) {
+                const s = state[side];
+                if (s.finished || s.redoStack.length === 0) return;
+                s.undoStack.push(JSON.parse(JSON.stringify(s.shapes)));
+                s.shapes = s.redoStack.pop();
+                s.selectedShapeId = null;
+                redrawAll(side);
+                updateHint(side);
+            }
+
+            function updateHint(side) {
+                const s = state[side];
+                const hint = s.hintEl;
+                if (!hint) return;
+                if (s.finished) { hint.classList.remove('show'); return; }
+                if (s.selectedShapeId !== null) {
+                    const shape = s.shapes.find(sh => sh.id === s.selectedShapeId);
+                    if (!shape || shape.type === 'fill') { hint.classList.remove('show'); return; }
+                    if (shape.type === 'triangle') {
+                        hint.textContent = '● 拖动顶点 · 👆 拖动移动 · 🔄 旋转 · 🗑️ 删除';
+                    } else if (shape.type === 'ellipse' || shape.type === 'rect') {
+                        hint.textContent = '👆 拖动移动 · 🔄 旋转 · 🗑️ 删除';
+                    } else {
+                        hint.textContent = '👆 拖动图形移动 · 🗑️ 删除';
+                    }
+                    hint.classList.add('show');
+                } else {
+                    hint.classList.remove('show');
+                }
+            }
+
+            function initCanvas(side) {
+                const canvas = document.getElementById(`canvas-${side}`);
+                if (!canvas) return;
+                const rect = canvas.getBoundingClientRect();
+                const w = Math.max(50, Math.round(rect.width));
+                const h = Math.max(50, Math.round(rect.height));
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.lineWidth = 4;
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, w, h);
+                state[side].canvas = canvas;
+                state[side].ctx = ctx;
+                state[side].hintEl = document.getElementById(`hint-${side}`);
+                state[side].floatingEl = document.getElementById(`floating-${side}`);
+                state[side].eraserEl = document.getElementById(`eraser-${side}`);
+            }
+
+            function resizeCanvas(side) {
+                const s = state[side];
+                const canvas = s.canvas;
+                if (!canvas) return;
+                const rect = canvas.getBoundingClientRect();
+                const w = Math.max(50, Math.round(rect.width));
+                const h = Math.max(50, Math.round(rect.height));
+                if (w !== canvas.width || h !== canvas.height) {
+                    canvas.width = w;
+                    canvas.height = h;
+                    redrawAll(side);
+                    updateHint(side);
+                }
+            }
+
+            function createColorButtons() {
+                const leftPalette = document.querySelector('.color-palette-left');
+                const rightPalette = document.querySelector('.color-palette-right');
+                leftPalette.innerHTML = '';
+                rightPalette.innerHTML = '';
+                COLOR_PALETTE.forEach((color) => {
+                    const leftBtn = document.createElement('div');
+                    leftBtn.className = 'color-btn';
+                    leftBtn.style.backgroundColor = color;
+                    leftBtn.dataset.color = color;
+                    if (color === '#FFFFFF') leftBtn.style.border = '2px solid #aaa';
+                    leftPalette.appendChild(leftBtn);
+
+                    const rightBtn = document.createElement('div');
+                    rightBtn.className = 'color-btn';
+                    rightBtn.style.backgroundColor = color;
+                    rightBtn.dataset.color = color;
+                    if (color === '#FFFFFF') rightBtn.style.border = '2px solid #aaa';
+                    rightPalette.appendChild(rightBtn);
+                });
+                const leftFirst = leftPalette.children[0];
+                const rightFirst = rightPalette.children[0];
+                if (leftFirst) { leftFirst.classList.add('active-color'); state.left.activeColorBtn = leftFirst; }
+                if (rightFirst) { rightFirst.classList.add('active-color'); state.right.activeColorBtn = rightFirst; }
+            }
+
+            function setActiveTool(side, tool) {
+                const container = document.getElementById(`toolbar-${side}`);
+                if (!container) return;
+                const btns = container.querySelectorAll('.tool-btn[data-tool]');
+                btns.forEach(btn => {
+                    const btnTool = btn.dataset.tool;
+                    if (btnTool === tool && !['undo', 'redo', 'delete', 'finish', 'ready'].includes(tool)) {
+                        btn.classList.add('active-tool');
+                    } else if (!['undo', 'redo', 'delete', 'finish', 'ready'].includes(btnTool)) {
+                        btn.classList.remove('active-tool');
+                    }
+                });
+            }
+
+            function setColor(side, color, colorBtn) {
+                if (state[side].finished) return;
+                state[side].color = color;
+                if (state[side].tool === 'eraser') setTool(side, 'pen');
+                if (state[side].activeColorBtn) state[side].activeColorBtn.classList.remove('active-color');
+                if (colorBtn) {
+                    colorBtn.classList.add('active-color');
+                    state[side].activeColorBtn = colorBtn;
+                }
+            }
+
+            function applyColorToSelected(side, color) {
+                const s = state[side];
+                if (s.finished || s.selectedShapeId === null) return;
+                const shape = s.shapes.find(sh => sh.id === s.selectedShapeId);
+                if (shape) {
+                    pushUndo(side);
+                    shape.color = color;
+                    redrawAll(side);
+                }
+            }
+
+            function setTool(side, tool) {
+                const s = state[side];
+                if (s.finished && tool !== 'finish') return;
+                if (!s.started && tool !== 'ready' && tool !== 'finish') return;
+
+                if (tool === 'undo') { undo(side); return; }
+                if (tool === 'redo') { redo(side); return; }
+                if (tool === 'delete') {
+                    if (s.selectedShapeId !== null) {
+                        pushUndo(side);
+                        s.shapes = s.shapes.filter(sh => sh.id !== s.selectedShapeId);
+                        s.selectedShapeId = null;
+                        redrawAll(side);
+                        updateHint(side);
+                    }
+                    return;
+                }
+                if (tool === 'ready') { markReady(side); return; }
+                if (tool === 'finish') { markFinished(side); return; }
+
+                s.tool = tool;
+                setActiveTool(side, tool);
+                updateHint(side);
+
+                if (tool !== 'eraser' && s.eraserEl) {
+                    s.eraserEl.classList.remove('show');
+                }
+
+                if (tool !== 'select') {
+                    s.selectedShapeId = null;
+                    redrawAll(side);
+                    updateHint(side);
+                } else {
+                    redrawAll(side);
+                }
+            }
+
+            function markReady(side) {
+                const s = state[side];
+                if (s.started) return;
+                if (s.ready) { cancelReady(side); return; }
+                s.ready = true;
+                // 若另一侧已在准备中 → 双方一起走共同倒计时
+                const other = side === 'left' ? 'right' : 'left';
+                if (state[other].ready && !state[other].started && !gameStarted) {
+                    startCommonCountdown();
+                    return;
+                }
+                startSideCountdown(side);
+            }
+
+            function startCommonCountdown() {
+                if (gameStarted) return;
+                ['left', 'right'].forEach(side => {
+                    const s = state[side];
+                    if (s.sideCountTimer) { clearInterval(s.sideCountTimer); s.sideCountTimer = null; }
+                    const cntEl = document.getElementById(`count-${side}`);
+                    if (cntEl) cntEl.classList.remove('show');
+                    const btn = document.getElementById(`ready-${side}`);
+                    btn.classList.add('ready');
+                    btn.querySelector('.btn-label').textContent = '已准备·再点取消';
+                });
+                const overlay = document.getElementById('countdownOverlay');
+                const numberEl = document.getElementById('countdownNumber');
+                let count = 3;
+                numberEl.textContent = count;
+                overlay.classList.add('show');
+                countdownTimer = setInterval(() => {
+                    count--;
+                    if (count > 0) {
+                        numberEl.textContent = count;
+                        numberEl.style.animation = 'none';
+                        void numberEl.offsetWidth;
+                        numberEl.style.animation = 'countPulse 1s ease infinite';
+                    } else {
+                        clearInterval(countdownTimer);
+                        countdownTimer = null;
+                        overlay.classList.remove('show');
+                        startSideGame('left');
+                        startSideGame('right');
+                    }
+                }, 1000);
+                updateStatusLabel();
+            }
+
+            function startSideCountdown(side) {
+                const s = state[side];
+                if (s.started) return;
+                s.ready = true;
+                const btn = document.getElementById(`ready-${side}`);
+                btn.classList.add('ready');
+                btn.querySelector('.btn-label').textContent = '准备中…再点取消';
+                const cntEl = document.getElementById(`count-${side}`);
+                let count = 3;
+                cntEl.textContent = count;
+                cntEl.classList.add('show');
+                if (s.sideCountTimer) clearInterval(s.sideCountTimer);
+                s.sideCountTimer = setInterval(() => {
+                    count--;
+                    if (count > 0) {
+                        cntEl.textContent = count;
+                    } else {
+                        clearInterval(s.sideCountTimer);
+                        s.sideCountTimer = null;
+                        cntEl.classList.remove('show');
+                        startSideGame(side);
+                    }
+                }, 1000);
+                updateStatusLabel();
+            }
+
+            function cancelReady(side) {
+                const s = state[side];
+                if (!s.ready || s.started) return;
+                s.ready = false;
+                if (s.sideCountTimer) { clearInterval(s.sideCountTimer); s.sideCountTimer = null; }
+                const cntEl = document.getElementById(`count-${side}`);
+                if (cntEl) cntEl.classList.remove('show');
+                const btn = document.getElementById(`ready-${side}`);
+                btn.classList.remove('ready');
+                btn.querySelector('.btn-label').textContent = '我已准备';
+                // 共同倒计时运行中取消 → 双方一起退出准备
+                if (countdownTimer) {
+                    clearInterval(countdownTimer);
+                    countdownTimer = null;
+                    document.getElementById('countdownOverlay').classList.remove('show');
+                    const other = side === 'left' ? 'right' : 'left';
+                    const os = state[other];
+                    if (os.ready && !os.started) {
+                        os.ready = false;
+                        const obtn = document.getElementById(`ready-${other}`);
+                        obtn.classList.remove('ready');
+                        obtn.querySelector('.btn-label').textContent = '我已准备';
+                    }
+                }
+                updateStatusLabel();
+            }
+
+            function startSideGame(side) {
+                const s = state[side];
+                if (s.started) return;
+                s.started = true;
+                s.ready = false;
+                if (!gameStarted) {
+                    generateRandomReference();
+                    gameStarted = true;
+                    setRefActionsDisabled(true);
+                    setMatchControlsDisabled(true);
+                }
+                lockCanvas(side, false);
+                const btn = document.getElementById(`ready-${side}`);
+                btn.classList.remove('ready');
+                btn.disabled = true;
+                btn.querySelector('.btn-label').textContent = '已开始';
+                startSideTimer(side);
+                updateStatusLabel();
+            }
+
+            // ============ 每侧比赛倒计时 ============
+            function updateSideClock(side) {
+                const el = document.getElementById(`clock-${side}`);
+                if (!el) return;
+                const s = state[side];
+                el.textContent = '⏱ ' + formatMMSS(s.started ? s.matchRemain : matchSeconds);
+                el.classList.toggle('warning', s.started && s.matchRemain <= 10);
+            }
+
+            function startSideTimer(side) {
+                const s = state[side];
+                if (s.matchTimer) clearInterval(s.matchTimer);
+                s.matchRemain = matchSeconds;
+                updateSideClock(side);
+                s.matchTimer = setInterval(() => {
+                    s.matchRemain--;
+                    updateSideClock(side);
+                    if (s.matchRemain <= 0) {
+                        clearInterval(s.matchTimer);
+                        s.matchTimer = null;
+                        updateSideClock(side);
+                        if (!s.finished) markFinished(side);
+                    }
+                }, 1000);
+            }
+
+            function stopSideTimer(side) {
+                const s = state[side];
+                if (s.matchTimer) { clearInterval(s.matchTimer); s.matchTimer = null; }
+                updateSideClock(side);
+            }
+
+            function markFinished(side) {
+                const s = state[side];
+                if (s.finished || !s.started) return;
+                s.finished = true;
+                stopSideTimer(side);
+                s.selectedShapeId = null;
+                redrawAll(side);
+                clearFloatingControls(side);
+                if (s.eraserEl) s.eraserEl.classList.remove('show');
+
+                const area = document.getElementById(`canvas-area-${side}`);
+                area.classList.add('finished');
+                const btn = document.getElementById(`finish-${side}`);
+                btn.classList.add('finished');
+                btn.querySelector('.btn-label').textContent = '已完成';
+                updateHint(side);
+                updateStatusLabel();
+                checkBothFinished();
+            }
+
+            function checkBothFinished() {
+                if (state.left.finished && state.right.finished) {
+                    showResultOverlay();
+                }
+                updateStatusLabel();
+            }
+
+            // ============ 比赛倒计时 ============
+            function formatMMSS(sec) {
+                const m = Math.floor(sec / 60);
+                const s = sec % 60;
+                return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+            }
+
+            function updateMatchClock() {
+                const el = document.getElementById('matchClock');
+                if (!el) return;
+                el.textContent = '⏱ ' + formatMMSS(matchSeconds);
+                el.classList.remove('warning');
+            }
+
+            function setMatchControlsDisabled(disabled) {
+                const area = document.getElementById('matchTimerArea');
+                const input = document.getElementById('matchMinutes');
+                const btn = document.getElementById('matchApply');
+                if (area) area.classList.toggle('disabled', disabled);
+                if (input) input.disabled = disabled;
+                if (btn) btn.disabled = disabled;
+            }
+
+            function applyMatchTime() {
+                if (gameStarted) return;
+                const input = document.getElementById('matchMinutes');
+                let v = parseInt(input.value, 10);
+                if (!v || isNaN(v)) v = 3;
+                v = Math.max(1, Math.min(60, v));
+                input.value = v;
+                matchSeconds = v * 60;
+                updateMatchClock();
+                updateSideClock('left');
+                updateSideClock('right');
+                const label = document.getElementById('status-label');
+                if (label) label.textContent = '⏱ 比赛时长已设为 ' + v + ' 分钟，各自点"我已准备"独立开始';
+            }
+
+            function lockCanvas(side, locked) {
+                const area = document.getElementById(`canvas-area-${side}`);
+                if (locked) area.classList.add('locked');
+                else area.classList.remove('locked');
+            }
+
+            function checkBothFinished() {
+                if (state.left.finished && state.right.finished) {
+                    showResultOverlay();
+                }
+                updateStatusLabel();
+            }
+
+            // ============ 橡皮光标 ============
+            function updateEraserCursor(side, clientX, clientY) {
+                const s = state[side];
+                if (!s.eraserEl) return;
+                if (s.tool !== 'eraser' || s.finished) {
+                    s.eraserEl.classList.remove('show');
+                    return;
+                }
+                const canvas = s.canvas;
+                const square = canvas.parentElement;
+                const squareRect = square.getBoundingClientRect();
+                const relX = clientX - squareRect.left;
+                const relY = clientY - squareRect.top;
+                s.eraserEl.style.left = relX + 'px';
+                s.eraserEl.style.top = relY + 'px';
+                s.eraserEl.classList.add('show');
+            }
+
+            function hideEraserCursor(side) {
+                const s = state[side];
+                if (s.eraserEl) s.eraserEl.classList.remove('show');
+            }
+
+            // ============ 画布事件 ============
+            function setupDrawingEvents(side) {
+                const s = state[side];
+                const canvas = s.canvas;
+                const ctx = s.ctx;
+                if (!canvas) return;
+
+                function onMouseDown(e) {
+                    if (s.finished || !s.started) return;
+                    if (s.dragMode !== null) return;
+                    if (e.target !== canvas) return;
+                    const coords = getCanvasCoordsFromEvent(side, e);
+                    if (!coords) return;
+                    const tool = s.tool;
+                    e.preventDefault();
+                    s.activePointerId = e.pointerId;
+
+                    if (tool === 'fill') {
+                        pushUndo(side);
+                        const fillShape = {
+                            id: shapeIdCounter++,
+                            type: 'fill',
+                            x: coords.x,
+                            y: coords.y,
+                            color: s.color,
+                        };
+                        performFloodFill(ctx, coords.x, coords.y, s.color, canvas.width, canvas.height);
+                        s.shapes.push(fillShape);
+                        return;
+                    }
+
+                    if (tool === 'select') {
+                        if (s.selectedShapeId !== null) {
+                            const sel = s.shapes.find(sh => sh.id === s.selectedShapeId);
+                            if (sel && sel.type !== 'fill' && isPointOnShape(sel, coords.x, coords.y)) {
+                                s.dragMode = 'move';
+                                s.dragStartX = coords.x;
+                                s.dragStartY = coords.y;
+                                s.dragStartSnapshot = JSON.parse(JSON.stringify(s.shapes));
+                                canvas.classList.add('moving');
+                                startGlobalDrag(side);
+                                return;
+                            }
+                        }
+                        const shape = findShapeAt(side, coords.x, coords.y);
+                        if (shape) {
+                            s.selectedShapeId = shape.id;
+                            redrawAll(side);
+                            updateHint(side);
+                        } else {
+                            s.selectedShapeId = null;
+                            redrawAll(side);
+                            updateHint(side);
+                        }
+                        return;
+                    }
+
+                    s.dragMode = 'draw';
+                    s.drawStartX = coords.x; s.drawStartY = coords.y;
+                    s.drawLastX = coords.x; s.drawLastY = coords.y;
+
+                    if (tool === 'pen' || tool === 'eraser') {
+                        if (tool === 'eraser') {
+                            if (e.clientX !== undefined) updateEraserCursor(side, e.clientX, e.clientY);
+                            else if (e.touches && e.touches[0]) updateEraserCursor(side, e.touches[0].clientX, e.touches[0].clientY);
+                        }
+                        s.currentShape = {
+                            id: shapeIdCounter++,
+                            type: 'pen',
+                            color: tool === 'eraser' ? '#FFFFFF' : s.color,
+                            lineWidth: tool === 'eraser' ? 14 : s.lineWidth,
+                            points: [{ x: coords.x, y: coords.y }],
+                        };
+                        ctx.fillStyle = s.currentShape.color;
+                        ctx.beginPath();
+                        ctx.arc(coords.x, coords.y, s.currentShape.lineWidth / 2, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else {
+                        s.savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        s.currentShape = null;
+                    }
+
+                    startGlobalDragForDraw(side);
+                }
+
+                canvas.addEventListener('pointerdown', onMouseDown);
+
+                canvas.addEventListener('pointermove', (e) => {
+                    if (s.finished || !s.started) return;
+                    if (s.tool !== 'eraser') return;
+                    if (s.dragMode === 'draw') return;
+                    updateEraserCursor(side, e.clientX, e.clientY);
+                });
+                canvas.addEventListener('pointerleave', () => {
+                    if (s.dragMode !== 'draw') hideEraserCursor(side);
+                });
+            }
+
+            function startGlobalDragForDraw(side) {
+                const s = state[side];
+                stopGlobalDragForDraw(side);
+
+                const onMove = (ev) => {
+                    if (s.dragMode !== 'draw') return;
+                    if (ev.pointerId !== s.activePointerId) return;
+                    const coords = getCanvasCoordsFromEvent(side, ev);
+                    if (!coords) return;
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    const tool = s.tool;
+                    const ctx = s.ctx;
+
+                    if (tool === 'eraser') {
+                        let cx, cy;
+                        if (ev.touches && ev.touches[0]) {
+                            cx = ev.touches[0].clientX; cy = ev.touches[0].clientY;
+                        } else if (ev.clientX !== undefined) {
+                            cx = ev.clientX; cy = ev.clientY;
+                        }
+                        if (cx !== undefined) updateEraserCursor(side, cx, cy);
+                    }
+
+                    if (tool === 'pen' || tool === 'eraser') {
+                        if (s.currentShape) {
+                            s.currentShape.points.push({ x: coords.x, y: coords.y });
+                            ctx.strokeStyle = s.currentShape.color;
+                            ctx.lineWidth = s.currentShape.lineWidth;
+                            ctx.beginPath();
+                            ctx.moveTo(s.drawLastX, s.drawLastY);
+                            ctx.lineTo(coords.x, coords.y);
+                            ctx.stroke();
+                            s.drawLastX = coords.x; s.drawLastY = coords.y;
+                        }
+                    } else {
+                        if (s.savedImageData) ctx.putImageData(s.savedImageData, 0, 0);
+                        const preview = makePreviewShape(tool, s.drawStartX, s.drawStartY, coords.x, coords.y, s.color, s.lineWidth);
+                        if (preview) drawShapeOnCtx(ctx, preview);
+                    }
+                };
+
+                const onUp = (ev) => {
+                    if (s.dragMode !== 'draw') return;
+                    if (ev.pointerId !== s.activePointerId) return;
+                    ev.preventDefault && ev.preventDefault();
+                    ev.stopPropagation && ev.stopPropagation();
+                    const coords = getCanvasCoordsFromEvent(side, ev) || { x: s.drawLastX, y: s.drawLastY };
+                    const tool = s.tool;
+                    const ctx = s.ctx;
+
+                    if (tool === 'pen' || tool === 'eraser') {
+                        if (s.currentShape && s.currentShape.points.length > 0) {
+                            pushUndo(side);
+                            s.shapes.push(s.currentShape);
+                            s.currentShape = null;
+                            redrawAll(side);
+                        }
+                        if (tool === 'eraser') hideEraserCursor(side);
+                    } else {
+                        const shape = makeFinalShape(tool, s.drawStartX, s.drawStartY, coords.x, coords.y, s.color, s.lineWidth);
+                        if (shape) {
+                            pushUndo(side);
+                            s.shapes.push(shape);
+                            s.currentShape = null;
+                            redrawAll(side);
+                        }
+                        s.savedImageData = null;
+                    }
+                    s.dragMode = null;
+                    s.activePointerId = null;
+                    stopGlobalDragForDraw(side);
+                };
+
+                s.drawMoveHandler = onMove;
+                s.drawUpHandler = onUp;
+                window.addEventListener('pointermove', onMove, true);
+                window.addEventListener('pointerup', onUp, true);
+                window.addEventListener('pointercancel', onUp, true);
+            }
+
+            function stopGlobalDragForDraw(side) {
+                const s = state[side];
+                if (s.drawMoveHandler) {
+                    window.removeEventListener('pointermove', s.drawMoveHandler, true);
+                    s.drawMoveHandler = null;
+                }
+                if (s.drawUpHandler) {
+                    window.removeEventListener('pointerup', s.drawUpHandler, true);
+                    window.removeEventListener('pointercancel', s.drawUpHandler, true);
+                    s.drawUpHandler = null;
+                }
+            }
+
+            function setupToolButtons() {
+                function handleClick(e, side) {
+                    const target = e.target.closest('.tool-btn');
+                    if (!target) return;
+                    const width = target.dataset.width;
+                    if (width) { setLineWidth(side, parseInt(width, 10)); return; }
+                    const tool = target.dataset.tool;
+                    if (!tool) return;
+                    setTool(side, tool);
+                }
+                document.getElementById('toolbar-left').addEventListener('pointerdown', (e) => { e.preventDefault(); handleClick(e, 'left'); });
+                document.getElementById('toolbar-right').addEventListener('pointerdown', (e) => { e.preventDefault(); handleClick(e, 'right'); });
+            }
+
+            function setupColorEvents() {
+                function handleColor(e, side) {
+                    const target = e.target.closest('.color-btn');
+                    if (!target) return;
+                    const color = target.dataset.color;
+                    if (color) {
+                        setColor(side, color, target);
+                        if (state[side].selectedShapeId !== null) applyColorToSelected(side, color);
+                    }
+                }
+                document.querySelector('.color-palette-left').addEventListener('pointerdown', (e) => { e.preventDefault(); handleColor(e, 'left'); });
+                document.querySelector('.color-palette-right').addEventListener('pointerdown', (e) => { e.preventDefault(); handleColor(e, 'right'); });
+            }
+
+            // ============ 状态栏 ============
+            function updateStatusLabel() {
+                const label = document.getElementById('status-label');
+                const L = state.left, R = state.right;
+                if (L.finished && R.finished) {
+                    label.textContent = '👏 双方都完成了！大家一起欣赏讨论吧～';
+                } else if (L.finished) {
+                    label.textContent = '✅ 左边已完成，等待右边…';
+                } else if (R.finished) {
+                    label.textContent = '✅ 右边已完成，等待左边…';
+                } else if (L.started && R.started) {
+                    label.textContent = '🎨 两人都在画，加油！';
+                } else if (L.started) {
+                    label.textContent = '🎨 左边同学比赛中，右边可随时点"我已准备"加入';
+                } else if (R.started) {
+                    label.textContent = '🎨 右边同学比赛中，左边可随时点"我已准备"加入';
+                } else if (countdownTimer) {
+                    label.textContent = '✨ 双方已准备，3 秒后同时开始！';
+                } else if (L.ready || R.ready) {
+                    label.textContent = '⏳ 准备中，各自点"我已准备"独立开始';
+                } else {
+                    label.textContent = '✨ 各自点"我已准备"：双方都点则一起开始，单方点则独立开始';
+                }
+            }
+
+            // ============ 确认弹窗 ============
+            function askConfirm(text, onOk) {
+                document.getElementById('confirmText').textContent = text;
+                confirmCallback = onOk;
+                document.getElementById('confirmOverlay').classList.add('show');
+            }
+
+            // ============ 参考图占位 ============
+            function drawRefPlaceholder() {
+                refCtx.fillStyle = '#FFFFFF';
+                refCtx.fillRect(0, 0, REF_SIZE, REF_SIZE);
+                refCtx.fillStyle = '#cccccc';
+                refCtx.font = 'bold 40px sans-serif';
+                refCtx.textAlign = 'center';
+                refCtx.textBaseline = 'middle';
+                refCtx.fillText('准备后出图', REF_SIZE / 2, REF_SIZE / 2);
+                document.getElementById('ref-footer').textContent = '准备后自动出图';
+            }
+
+            // ============ 参考图导入 ============
+            function drawRefImageContain(img) {
+                refCtx.fillStyle = '#FFFFFF';
+                refCtx.fillRect(0, 0, REF_SIZE, REF_SIZE);
+                const scale = Math.min(REF_SIZE / img.width, REF_SIZE / img.height, 1);
+                const w = img.width * scale, h = img.height * scale;
+                refCtx.drawImage(img, (REF_SIZE - w) / 2, (REF_SIZE - h) / 2, w, h);
+            }
+
+            function loadReferenceFromFile(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        customRefActive = true;
+                        customRefImg = img;
+                        drawRefImageContain(img);
+                        document.getElementById('ref-footer').textContent = '本张参考图：自定义图片';
+                    };
+                    img.onerror = () => alert('图片读取失败，请换一张试试');
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            function setRefActionsDisabled(disabled) {
+                document.getElementById('import-ref-btn').disabled = disabled;
+                document.getElementById('random-ref-btn').disabled = disabled;
+            }
+
+            function setupRefImport() {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.style.display = 'none';
+                input.addEventListener('change', (e) => {
+                    const f = e.target.files && e.target.files[0];
+                    if (f) loadReferenceFromFile(f);
+                    input.value = '';
+                });
+                document.body.appendChild(input);
+                document.getElementById('import-ref-btn').addEventListener('click', () => input.click());
+                document.getElementById('random-ref-btn').addEventListener('click', () => {
+                    customRefActive = false;
+                    customRefImg = null;
+                    generateRandomReference();
+                });
+            }
+
+            // ============ 结果展示 ============
+            function showResultOverlay() {
+                const rr = document.getElementById('result-ref');
+                rr.width = REF_SIZE; rr.height = REF_SIZE;
+                rr.getContext('2d').drawImage(document.getElementById('reference-canvas'), 0, 0);
+                const lc = document.getElementById('result-left');
+                lc.width = state.left.canvas.width; lc.height = state.left.canvas.height;
+                lc.getContext('2d').drawImage(state.left.canvas, 0, 0);
+                const rc = document.getElementById('result-right');
+                rc.width = state.right.canvas.width; rc.height = state.right.canvas.height;
+                rc.getContext('2d').drawImage(state.right.canvas, 0, 0);
+                document.getElementById('resultOverlay').classList.add('show');
+            }
+
+            // ============ 轮次管理 ============
+            function clearRound(side) {
+                const s = state[side];
+                s.shapes = [];
+                s.selectedShapeId = null;
+                s.undoStack = [];
+                s.redoStack = [];
+                s.currentShape = null;
+                s.dragMode = null;
+                stopGlobalDrag(side);
+                stopGlobalDragForDraw(side);
+                hideEraserCursor(side);
+                redrawAll(side);
+                updateHint(side);
+            }
+
+            function resetRoundState(gameStartImmediately) {
+                ['left', 'right'].forEach(side => {
+                    clearRound(side);
+                    const s = state[side];
+                    s.ready = false;
+                    s.finished = false;
+                    s.started = false;
+                    if (s.sideCountTimer) { clearInterval(s.sideCountTimer); s.sideCountTimer = null; }
+                    stopSideTimer(side);
+                    s.tool = 'pen';
+                    const cntEl = document.getElementById(`count-${side}`);
+                    if (cntEl) cntEl.classList.remove('show');
+                    const rBtn = document.getElementById(`ready-${side}`);
+                    rBtn.disabled = false;
+                    rBtn.classList.remove('ready');
+                    rBtn.querySelector('.btn-label').textContent = '我已准备';
+                    const fBtn = document.getElementById(`finish-${side}`);
+                    fBtn.classList.remove('finished');
+                    fBtn.querySelector('.btn-label').textContent = '我已完成';
+                    document.getElementById(`canvas-area-${side}`).classList.remove('finished');
+                    document.getElementById(`canvas-area-${side}`).classList.remove('locked');
+                    setActiveTool(side, 'pen');
+                });
+                document.getElementById('bothReadyToast').classList.remove('show');
+                document.getElementById('countdownOverlay').classList.remove('show');
+                document.getElementById('resultOverlay').classList.remove('show');
+                if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+
+                gameStarted = false;
+                setRefActionsDisabled(false);
+                setMatchControlsDisabled(false);
+                if (gameStartImmediately) {
+                    startSideGame('left');
+                    startSideGame('right');
+                } else {
+                    drawRefPlaceholder();
+                    lockCanvas('left', true);
+                    lockCanvas('right', true);
+                }
+                updateStatusLabel();
+            }
+
+            // ============ 线条粗细 ============
+            function setLineWidth(side, w) {
+                const s = state[side];
+                if (s.finished) return;
+                s.lineWidth = w;
+                const container = document.getElementById(`toolbar-${side}`);
+                if (!container) return;
+                container.querySelectorAll('.width-btn').forEach(btn => {
+                    btn.classList.toggle('active-tool', parseInt(btn.dataset.width, 10) === w);
+                });
+            }
+
+            // ============ 重置 ============
+            function resetReady() {
+                state.left.ready = false;
+                state.right.ready = false;
+                state.left.finished = false;
+                state.right.finished = false;
+                state.left.started = false;
+                state.right.started = false;
+                state.left.dragMode = null;
+                state.right.dragMode = null;
+                gameStarted = false;
+                ['left', 'right'].forEach(side => {
+                    const s = state[side];
+                    if (s.sideCountTimer) { clearInterval(s.sideCountTimer); s.sideCountTimer = null; }
+                    stopSideTimer(side);
+                    const cntEl = document.getElementById(`count-${side}`);
+                    if (cntEl) cntEl.classList.remove('show');
+                    const rBtn = document.getElementById(`ready-${side}`);
+                    const fBtn = document.getElementById(`finish-${side}`);
+                    rBtn.disabled = false;
+                    rBtn.classList.remove('ready');
+                    rBtn.querySelector('.btn-label').textContent = '我已准备';
+                    fBtn.classList.remove('finished');
+                    fBtn.querySelector('.btn-label').textContent = '我已完成';
+                    document.getElementById(`canvas-area-${side}`).classList.remove('finished');
+                    document.getElementById(`canvas-area-${side}`).classList.remove('locked');
+                    clearFloatingControls(side);
+                    stopGlobalDrag(side);
+                    stopGlobalDragForDraw(side);
+                    hideEraserCursor(side);
+                });
+                document.getElementById('bothReadyToast').classList.remove('show');
+                document.getElementById('countdownOverlay').classList.remove('show');
+                document.getElementById('resultOverlay').classList.remove('show');
+                if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+                updateStatusLabel();
+            }
+
+            function init() {
+                initRefCanvas();
+                drawRefPlaceholder();
+
+                initCanvas('left');
+                initCanvas('right');
+                createColorButtons();
+                setActiveTool('left', 'pen');
+                setActiveTool('right', 'pen');
+                setColor('left', '#000000', document.querySelector('.color-palette-left .color-btn'));
+                setColor('right', '#000000', document.querySelector('.color-palette-right .color-btn'));
+                setLineWidth('left', 4);
+                setLineWidth('right', 4);
+                setupDrawingEvents('left');
+                setupDrawingEvents('right');
+                setupToolButtons();
+                setupColorEvents();
+
+                lockCanvas('left', true);
+                lockCanvas('right', true);
+                resetReady();
+
+                document.getElementById('confirmOk').addEventListener('click', () => {
+                    document.getElementById('confirmOverlay').classList.remove('show');
+                    if (confirmCallback) { const cb = confirmCallback; confirmCallback = null; cb(); }
+                });
+                document.getElementById('confirmCancel').addEventListener('click', () => {
+                    document.getElementById('confirmOverlay').classList.remove('show');
+                    confirmCallback = null;
+                });
+                document.getElementById('restart-top').addEventListener('click', () => {
+                    askConfirm('确定要重新开始本局吗？双方画布将清空，回到准备阶段。', () => {
+                        resetRoundState(false);
+                    });
+                });
+                document.getElementById('next-round-btn').addEventListener('click', () => resetRoundState(true));
+                document.getElementById('end-game-btn').addEventListener('click', () => {
+                    resetRoundState(false);
+                });
+                setupRefImport();
+
+                document.getElementById('matchApply').addEventListener('click', applyMatchTime);
+                document.getElementById('matchMinutes').addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') applyMatchTime();
+                });
+                updateMatchClock();
+                updateSideClock('left');
+                updateSideClock('right');
+
+                window.addEventListener('resize', () => {
+                    resizeCanvas('left');
+                    resizeCanvas('right');
+                    updateFloatingControls('left');
+                    updateFloatingControls('right');
+                });
+
+                window.addEventListener('keydown', (e) => {
+                    if (e.ctrlKey && e.key === 'z') {
+                        e.preventDefault();
+                        undo('left'); undo('right');
+                    }
+                    if (e.ctrlKey && e.key === 'y') {
+                        e.preventDefault();
+                        redo('left'); redo('right');
+                    }
+                });
+            }
+
+            window.addEventListener('DOMContentLoaded', init);
+        })();
+    </script>
+</body>
+</html>
