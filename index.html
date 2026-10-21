@@ -1167,11 +1167,43 @@
             }
 
             // ============ 图形绘制 ============
-            function drawShapeOnCtx(ctx, shape) {
+            function drawShapeOnCtx(ctx, shape, side) {
                 if (shape.type === 'fill') {
-                    performFloodFill(ctx, shape.x, shape.y, shape.color, ctx.canvas.width, ctx.canvas.height);
+                    if (shape.ownerId && side) {
+                        // 属于某个闭合图形：直接按该图形的形状填满内部（多边形填充），
+                        // 再重画描边，保证填充不盖描边；图形重叠时后画的填充自然盖住先画的
+                        const owner = state[side].shapes.find(sh => sh.id === shape.ownerId && sh.type !== 'fill');
+                        if (!owner) return;
+                        fillShapePath(ctx, owner, shape.color);
+                        drawShapeStroke(ctx, owner);
+                    } else {
+                        performFloodFill(ctx, shape.x, shape.y, shape.color, ctx.canvas.width, ctx.canvas.height, null);
+                    }
                     return;
                 }
+                drawShapeStroke(ctx, shape);
+            }
+
+            function fillShapePath(ctx, shape, color) {
+                ctx.save();
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                if (shape.type === 'triangle') {
+                    ctx.moveTo(shape.x1, shape.y1); ctx.lineTo(shape.x2, shape.y2); ctx.lineTo(shape.x3, shape.y3);
+                    ctx.closePath(); ctx.fill();
+                } else if (shape.type === 'rect') {
+                    ctx.translate(shape.x + shape.w / 2, shape.y + shape.h / 2);
+                    ctx.rotate(shape.rotation || 0);
+                    ctx.rect(-shape.w / 2, -shape.h / 2, shape.w, shape.h);
+                    ctx.fill();
+                } else if (shape.type === 'ellipse') {
+                    ctx.ellipse(shape.cx, shape.cy, Math.abs(shape.rx), Math.abs(shape.ry), shape.rotation || 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+
+            function drawShapeStroke(ctx, shape) {
                 ctx.strokeStyle = shape.color;
                 ctx.lineWidth = shape.lineWidth;
                 ctx.lineCap = 'round';
@@ -1211,7 +1243,7 @@
                 }
             }
 
-            function performFloodFill(ctx, startX, startY, fillColor, w, h) {
+            function performFloodFill(ctx, startX, startY, fillColor, w, h, eraserSegs) {
                 const imgData = ctx.getImageData(0, 0, w, h);
                 const data = imgData.data;
                 const startXInt = Math.floor(startX), startYInt = Math.floor(startY);
@@ -1221,11 +1253,24 @@
                 const fillRGB = hexToRgb(fillColor);
                 if (!fillRGB) return;
                 if (startR === fillRGB.r && startG === fillRGB.g && startB === fillRGB.b && startA === 255) return;
+                // 只允许在白色区域填充：锚点不是白色（已被其他图形/填充覆盖）时不填充，
+                // 避免图形重叠移动时填充串色、误染到别的图形
+                if (Math.abs(startR - 255) > 30 || Math.abs(startG - 255) > 30 || Math.abs(startB - 255) > 30) return;
                 const tolerance = 30;
                 const match = (idx) => {
                     const r = data[idx], g = data[idx + 1], b = data[idx + 2], a = data[idx + 3];
                     return Math.abs(r - startR) <= tolerance && Math.abs(g - startG) <= tolerance &&
                            Math.abs(b - startB) <= tolerance && Math.abs(a - startA) <= tolerance;
+                };
+                // 橡皮擦痕迹是“障碍”：填充不穿过它，避免白线把图形内外连通导致漏出全画布
+                const inEraser = (x, y) => {
+                    if (!eraserSegs || eraserSegs.length === 0) return false;
+                    const px = x + 0.5, py = y + 0.5;
+                    for (let i = 0; i < eraserSegs.length; i++) {
+                        const s = eraserSegs[i];
+                        if (distToSegment(px, py, s.x1, s.y1, s.x2, s.y2) <= s.w / 2) return true;
+                    }
+                    return false;
                 };
                 const stack = [[startXInt, startYInt]];
                 const visited = new Uint8Array(w * h);
@@ -1236,6 +1281,7 @@
                     if (visited[pos]) continue;
                     const idx = pos * 4;
                     if (!match(idx)) continue;
+                    if (!(x === startXInt && y === startYInt) && inEraser(x, y)) continue;
                     visited[pos] = 1;
                     data[idx] = fillRGB.r; data[idx + 1] = fillRGB.g; data[idx + 2] = fillRGB.b; data[idx + 3] = 255;
                     stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
@@ -1243,9 +1289,57 @@
                 ctx.putImageData(imgData, 0, 0);
             }
 
+            function getEraserSegments(side) {
+                const segs = [];
+                const ss = state[side];
+                if (!ss) return segs;
+                ss.shapes.forEach(sh => {
+                    if (sh.type === 'pen' && sh.eraser) {
+                        for (let i = 0; i < sh.points.length - 1; i++) {
+                            segs.push({ x1: sh.points[i].x, y1: sh.points[i].y, x2: sh.points[i + 1].x, y2: sh.points[i + 1].y, w: sh.lineWidth });
+                        }
+                        if (sh.points.length === 1) {
+                            const p = sh.points[0];
+                            segs.push({ x1: p.x, y1: p.y, x2: p.x, y2: p.y, w: sh.lineWidth });
+                        }
+                    }
+                });
+                return segs;
+            }
+
             function hexToRgb(hex) {
                 const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
                 return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
+            }
+
+            function pointInTriangle(px, py, x1, y1, x2, y2, x3, y3) {
+                const d1 = (px - x2) * (y1 - y2) - (x1 - x2) * (py - y2);
+                const d2 = (px - x3) * (y2 - y3) - (x2 - x3) * (py - y3);
+                const d3 = (px - x1) * (y3 - y1) - (x3 - x1) * (py - y1);
+                const hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+                const hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+                return !(hasNeg && hasPos);
+            }
+
+            function pointInShapeInterior(px, py, shape) {
+                if (shape.type === 'triangle') {
+                    return pointInTriangle(px, py, shape.x1, shape.y1, shape.x2, shape.y2, shape.x3, shape.y3);
+                }
+                if (shape.type === 'rect') {
+                    if (shape.rotation) {
+                        const cx = shape.x + shape.w / 2, cy = shape.y + shape.h / 2;
+                        const dx = px - cx, dy = py - cy;
+                        const cos = Math.cos(-shape.rotation), sin = Math.sin(-shape.rotation);
+                        const lx = dx * cos - dy * sin, ly = dx * sin + dy * cos;
+                        return Math.abs(lx) <= shape.w / 2 && Math.abs(ly) <= shape.h / 2;
+                    }
+                    return px >= shape.x && px <= shape.x + shape.w && py >= shape.y && py <= shape.y + shape.h;
+                }
+                if (shape.type === 'ellipse') {
+                    const dx = (px - shape.cx) / Math.abs(shape.rx), dy = (py - shape.cy) / Math.abs(shape.ry);
+                    return dx * dx + dy * dy <= 1;
+                }
+                return false;
             }
 
             function getShapeBounds(shape) {
@@ -1294,7 +1388,10 @@
                 if (!ctx || !canvas) return;
                 ctx.fillStyle = '#FFFFFF';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-                s.shapes.forEach(shape => drawShapeOnCtx(ctx, shape));
+                // 渲染顺序：基础图形（描边）→ 填充 → 橡皮擦痕迹（覆盖在填充之上，保留擦除缺口）
+                s.shapes.filter(sh => sh.type !== 'fill' && !(sh.type === 'pen' && sh.eraser)).forEach(shape => drawShapeOnCtx(ctx, shape, side));
+                s.shapes.filter(sh => sh.type === 'fill').forEach(shape => drawShapeOnCtx(ctx, shape, side));
+                s.shapes.filter(sh => sh.type === 'pen' && sh.eraser).forEach(shape => drawShapeOnCtx(ctx, shape, side));
                 if (s.selectedShapeId !== null) {
                     const shape = s.shapes.find(sh => sh.id === s.selectedShapeId);
                     if (shape && shape.type !== 'fill') drawSelectionHighlight(ctx, shape);
@@ -1309,7 +1406,10 @@
                 if (!ctx || !canvas) return;
                 ctx.fillStyle = '#FFFFFF';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-                s.shapes.forEach(shape => drawShapeOnCtx(ctx, shape));
+                // 渲染顺序：基础图形（描边）→ 填充 → 橡皮擦痕迹
+                s.shapes.filter(sh => sh.type !== 'fill' && !(sh.type === 'pen' && sh.eraser)).forEach(shape => drawShapeOnCtx(ctx, shape, side));
+                s.shapes.filter(sh => sh.type === 'fill').forEach(shape => drawShapeOnCtx(ctx, shape, side));
+                s.shapes.filter(sh => sh.type === 'pen' && sh.eraser).forEach(shape => drawShapeOnCtx(ctx, shape, side));
                 if (s.selectedShapeId !== null) {
                     const shape = s.shapes.find(sh => sh.id === s.selectedShapeId);
                     if (shape && shape.type !== 'fill') drawSelectionHighlight(ctx, shape);
@@ -1427,6 +1527,7 @@
                     s.rotateStartAngle = Math.atan2(coords.y - s.rotateCenterY, coords.x - s.rotateCenterX);
                     s.rotateShapeStartState = JSON.parse(JSON.stringify(shape));
                     s.dragStartSnapshot = JSON.parse(JSON.stringify(s.shapes));
+                    bringShapeToTop(side, shape.id);
                     startGlobalDrag(side);
                 }
                 rotEl.addEventListener('pointerdown', onDown);
@@ -1439,7 +1540,9 @@
                     e.preventDefault();
                     e.stopPropagation();
                     pushUndo(side);
-                    s.shapes = s.shapes.filter(sh => sh.id !== s.selectedShapeId);
+                    const deletedId = s.selectedShapeId;
+                    // 删除图形时，连带删除属于它的填充，避免填充残留漏色
+                    s.shapes = s.shapes.filter(sh => sh.id !== deletedId && !(sh.type === 'fill' && sh.ownerId === deletedId));
                     s.selectedShapeId = null;
                     redrawAll(side);
                     updateHint(side);
@@ -1488,7 +1591,7 @@
                         s.dragStartX = coords.x;
                         s.dragStartY = coords.y;
                         const shape = s.shapes.find(sh => sh.id === s.selectedShapeId);
-                        if (shape) moveShape(shape, dx, dy);
+                        if (shape) moveShape(side, shape, dx, dy);
                         redrawCanvasOnly(side);
                         updateFloatingPositions(side);
                     } else if (s.dragMode === 'rotate') {
@@ -1496,7 +1599,7 @@
                         const deltaAngle = angle - s.rotateStartAngle;
                         const shape = s.shapes.find(sh => sh.id === s.selectedShapeId);
                         if (shape && s.rotateShapeStartState) {
-                            rotateShapeByAngle(shape, s.rotateShapeStartState, deltaAngle);
+                            rotateShapeByAngle(side, shape, s.rotateShapeStartState, deltaAngle);
                         }
                         redrawCanvasOnly(side);
                         updateFloatingPositions(side);
@@ -1506,6 +1609,20 @@
                             if (s.vertexIndex === 0) { shape.x1 = coords.x; shape.y1 = coords.y; }
                             else if (s.vertexIndex === 1) { shape.x2 = coords.x; shape.y2 = coords.y; }
                             else if (s.vertexIndex === 2) { shape.x3 = coords.x; shape.y3 = coords.y; }
+                            // 顶点变化后，把“原本在该三角形内”的填充锚点拉回新三角形内部，避免填充漏到外面
+                            const ss = state[side];
+                            const before = ss.dragStartSnapshot ? ss.dragStartSnapshot.find(o => o.id === shape.id) : null;
+                            if (before) {
+                                ss.shapes.forEach(sh => {
+                                    if (sh.type !== 'fill') return;
+                                    const wasInside = pointInTriangle(sh.x, sh.y, before.x1, before.y1, before.x2, before.y2, before.x3, before.y3) ||
+                                                      (sh.ownerId === shape.id);
+                                    if (wasInside && !pointInTriangle(sh.x, sh.y, shape.x1, shape.y1, shape.x2, shape.y2, shape.x3, shape.y3)) {
+                                        sh.x = (shape.x1 + shape.x2 + shape.x3) / 3;
+                                        sh.y = (shape.y1 + shape.y2 + shape.y3) / 3;
+                                    }
+                                });
+                            }
                         }
                         redrawCanvasOnly(side);
                         updateFloatingPositions(side);
@@ -1682,7 +1799,28 @@
             }
 
             // ============ 图形变换 ============
-            function moveShape(shape, dx, dy) {
+            function bringShapeToTop(side, shapeId) {
+                // 把被移动/旋转的图形连同其填充移到 shapes 末尾，使其在重叠时显示在上层
+                const s = state[side];
+                if (!s) return;
+                const idx = s.shapes.findIndex(sh => sh.id === shapeId);
+                if (idx < 0) return;
+                const shape = s.shapes.splice(idx, 1)[0];
+                s.shapes.push(shape);
+                const fidx = s.shapes.findIndex(sh => sh.type === 'fill' && sh.ownerId === shapeId);
+                if (fidx >= 0) {
+                    const f = s.shapes.splice(fidx, 1)[0];
+                    s.shapes.push(f);
+                }
+            }
+
+            function moveShape(side, shape, dx, dy) {
+                // 记录移动前的包围盒（擦除痕迹跟随判定的范围）
+                const b0 = getShapeBounds(shape);
+                const pad = 12;
+                const oldMinX = b0.x - pad, oldMinY = b0.y - pad;
+                const oldMaxX = b0.x + b0.w + pad, oldMaxY = b0.y + b0.h + pad;
+
                 if (shape.type === 'pen') shape.points.forEach(p => { p.x += dx; p.y += dy; });
                 else if (shape.type === 'line') { shape.x1 += dx; shape.y1 += dy; shape.x2 += dx; shape.y2 += dy; }
                 else if (shape.type === 'ellipse') { shape.cx += dx; shape.cy += dy; }
@@ -1692,6 +1830,23 @@
                     shape.x2 += dx; shape.y2 += dy;
                     shape.x3 += dx; shape.y3 += dy;
                 }
+
+                // 把落在原包围盒内的橡皮擦痕迹、填充起点一起平移，避免移动后擦除部分“复活”或填充色不跟随
+                const ss = state[side];
+                if (!ss) return;
+                ss.shapes.forEach(sh => {
+                    if (sh.type === 'pen' && sh.eraser) {
+                        sh.points.forEach(p => {
+                            if (p.x >= oldMinX && p.x <= oldMaxX && p.y >= oldMinY && p.y <= oldMaxY) {
+                                p.x += dx; p.y += dy;
+                            }
+                        });
+                    } else if (sh.type === 'fill') {
+                        if (sh.x >= oldMinX && sh.x <= oldMaxX && sh.y >= oldMinY && sh.y <= oldMaxY) {
+                            sh.x += dx; sh.y += dy;
+                        }
+                    }
+                });
             }
 
             function rotatePoint(x, y, cx, cy, angle) {
@@ -1700,10 +1855,11 @@
                 return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
             }
 
-            function rotateShapeByAngle(shape, originalShape, angle) {
+            function rotateShapeByAngle(side, shape, originalShape, angle) {
+                let cx, cy;
                 if (originalShape.type === 'triangle') {
-                    const cx = (originalShape.x1 + originalShape.x2 + originalShape.x3) / 3;
-                    const cy = (originalShape.y1 + originalShape.y2 + originalShape.y3) / 3;
+                    cx = (originalShape.x1 + originalShape.x2 + originalShape.x3) / 3;
+                    cy = (originalShape.y1 + originalShape.y2 + originalShape.y3) / 3;
                     const p1 = rotatePoint(originalShape.x1, originalShape.y1, cx, cy, angle);
                     const p2 = rotatePoint(originalShape.x2, originalShape.y2, cx, cy, angle);
                     const p3 = rotatePoint(originalShape.x3, originalShape.y3, cx, cy, angle);
@@ -1712,9 +1868,50 @@
                     shape.x3 = p3.x; shape.y3 = p3.y;
                 } else if (originalShape.type === 'ellipse') {
                     shape.rotation = (originalShape.rotation || 0) + angle;
+                    cx = originalShape.cx; cy = originalShape.cy;
                 } else if (originalShape.type === 'rect') {
                     shape.rotation = (originalShape.rotation || 0) + angle;
+                    cx = originalShape.x + originalShape.w / 2;
+                    cy = originalShape.y + originalShape.h / 2;
+                } else {
+                    return;
                 }
+
+                // 旋转后，让落在图形范围内的擦除痕迹与填充一起跟随旋转
+                // 注意：必须以“旋转开始时的快照”位置为基准旋转（dragStartSnapshot），
+                // 不能从当前位置再转总角度，否则多次 move 会越转越多、偏离图形
+                const ss = state[side];
+                if (!ss) return;
+                const snap = ss.dragStartSnapshot || null;
+                const b = getShapeBounds(shape);
+                const pad = 12;
+                ss.shapes.forEach(sh => {
+                    if (sh.type === 'pen' && sh.eraser) {
+                        const orig = snap ? snap.find(o => o.id === sh.id) : null;
+                        const srcPoints = orig ? orig.points : sh.points;
+                        for (let i = 0; i < srcPoints.length && i < sh.points.length; i++) {
+                            const op = srcPoints[i];
+                            if (op.x >= b.x - pad && op.x <= b.x + b.w + pad && op.y >= b.y - pad && op.y <= b.y + b.h + pad) {
+                                const rp = rotatePoint(op.x, op.y, cx, cy, angle);
+                                sh.points[i].x = rp.x; sh.points[i].y = rp.y;
+                            }
+                        }
+                    } else if (sh.type === 'fill') {
+                        const orig = snap ? snap.find(o => o.id === sh.id) : null;
+                        const ox = orig ? orig.x : sh.x;
+                        const oy = orig ? orig.y : sh.y;
+                        if (ox >= b.x - pad && ox <= b.x + b.w + pad && oy >= b.y - pad && oy <= b.y + b.h + pad) {
+                            const rp = rotatePoint(ox, oy, cx, cy, angle);
+                            sh.x = rp.x; sh.y = rp.y;
+                            // 旋转后若填充锚点落到图形范围外（极端偏心旋转时），拉回图形中心，避免填充漏到画布外
+                            const nb = getShapeBounds(shape);
+                            const npad = 24;
+                            if (sh.x < nb.x - npad || sh.x > nb.x + nb.w + npad || sh.y < nb.y - npad || sh.y > nb.y + nb.h + npad) {
+                                sh.x = cx; sh.y = cy;
+                            }
+                        }
+                    }
+                });
             }
 
             function makePreviewShape(tool, x1, y1, x2, y2, color, lineWidth) {
@@ -2207,15 +2404,22 @@
 
                     if (tool === 'fill') {
                         pushUndo(side);
+                        // 记录填充点击位置所属的图形，供顶点编辑/删除时联动处理
+                        let ownerId = null;
+                        for (const sh of s.shapes) {
+                            if (sh.type === 'fill' || (sh.type === 'pen' && sh.eraser)) continue;
+                            if (pointInShapeInterior(coords.x, coords.y, sh)) { ownerId = sh.id; break; }
+                        }
                         const fillShape = {
                             id: shapeIdCounter++,
                             type: 'fill',
                             x: coords.x,
                             y: coords.y,
                             color: s.color,
+                            ownerId: ownerId,
                         };
-                        performFloodFill(ctx, coords.x, coords.y, s.color, canvas.width, canvas.height);
                         s.shapes.push(fillShape);
+                        redrawAll(side);
                         return;
                     }
 
@@ -2227,6 +2431,7 @@
                                 s.dragStartX = coords.x;
                                 s.dragStartY = coords.y;
                                 s.dragStartSnapshot = JSON.parse(JSON.stringify(s.shapes));
+                                bringShapeToTop(side, sel.id);
                                 canvas.classList.add('moving');
                                 startGlobalDrag(side);
                                 return;
@@ -2259,6 +2464,7 @@
                             type: 'pen',
                             color: tool === 'eraser' ? '#FFFFFF' : s.color,
                             lineWidth: tool === 'eraser' ? 14 : s.lineWidth,
+                            eraser: tool === 'eraser',
                             points: [{ x: coords.x, y: coords.y }],
                         };
                         ctx.fillStyle = s.currentShape.color;
